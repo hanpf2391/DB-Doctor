@@ -1,0 +1,149 @@
+# ============================================================================
+# DB-Doctor .gitignore
+# ============================================================================
+# 说明：
+# 1. 本文件定义了哪些文件/目录不应该被 Git 跟踪
+# 2. 本地配置文件 application-local.yml 包含敏感信息，必须排除
+# 3. 其他常见的不需要版本控制的文件和目录
+# ============================================================================
+
+# -------------------------
+# 敏感配置文件（最重要！）
+# -------------------------
+# 本地开发配置文件（包含 API Key、密码等敏感信息）
+src/main/resources/application-local.yml
+# 其他可能的本地配置文件
+application-local.yml
+*-local.yml
+*-local.properties
+# 配置文件备份
+*.yml.bak
+*.properties.bak
+
+# -------------------------
+# IDE 相关文件
+# -------------------------
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.project
+.classpath
+.settings/
+.metadata/
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+.recommenders/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# -------------------------
+# 构建产物
+# -------------------------
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+
+# Gradle
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+.gradle/
+gradle-app.setting
+
+# -------------------------
+# 日志文件
+# -------------------------
+logs/
+*.log
+log/
+*.log.gz
+*.log.zip
+
+# -------------------------
+# 操作系统文件
+# -------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+
+# -------------------------
+# 临时文件
+# -------------------------
+*.tmp
+*.temp
+*.cache
+*.bak
+*.backup
+*.old
+
+# -------------------------
+# 运行时文件
+# -------------------------
+# PID 文件
+*.pid
+*.pid.lock
+
+# 内存转储文件
+*.hprof
+*.dump
+
+# -------------------------
+# 打包文件（可选）
+# -------------------------
+# 如果不想提交打包产物，取消下面的注释
+# *.tar.gz
+# *.zip
+# *.jar
+
+# -------------------------
+# 其他
+# -------------------------
+# 测试覆盖率报告
+coverage/
+*.coverage
+
+# 文档生成目录
+docs/generated/
+
+# 敏感信息文件
+secret.properties
+credentials.json
+*.pem
+*.key
+*.crt

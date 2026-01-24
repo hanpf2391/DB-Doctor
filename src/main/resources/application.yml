@@ -1,0 +1,141 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: db-doctor
+  # 激活的配置文件（local、dev、prod）
+  profiles:
+    active: local
+
+  # === H2 主数据源配置 ===
+  # 用途：存储 DB-Doctor 自己的数据（分析历史、SQL 指纹等）
+  datasource:
+    # H2 存文件到当前目录下的 data 文件夹
+    url: jdbc:h2:file:./data/db-doctor-internal;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    # 明确指定使用 H2（防止 Spring Boot 自动选择 MySQL）
+    type: com.zaxxer.hikari.HikariDataSource
+
+  # JPA 配置 (只针对 H2)
+  jpa:
+    hibernate:
+      ddl-auto: update  # 自动建表
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+    defer-datasource-initialization: true  # 延迟数据源初始化，避免启动失败
+
+  # 邮件配置
+  # 注意：邮箱账号密码等敏感信息请在 application-local.yml 中配置
+  mail:
+    host: smtp.qq.com
+    port: 587
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: false
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
+    default-encoding: UTF-8
+
+# DB-Doctor 项目配置
+db-doctor:
+  # 项目基本信息
+  name: DB-Doctor
+  version: 1.0.0
+  description: MySQL 慢查询智能诊疗系统
+
+  # === 用户目标数据源配置（MySQL） ===
+  # 用途：只读访问用户的 MySQL（查询 slow_log、执行 EXPLAIN）
+  # 注意：用户名、密码等敏感信息请在 application-local.yml 中配置
+  target-db:
+    url: jdbc:mysql://localhost:3306/information_schema?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # username 和 password 在 application-local.yml 中配置
+
+  # AI 配置
+  ai:
+    enabled: true
+    # 一次分析的最大日志数量（防止过载）
+    max-concurrent-analysis: 4
+
+  # 慢查询监控配置
+  slow-log-monitor:
+    # 轮询间隔（毫秒），默认 60 秒
+    poll-interval-ms: 60000
+    # 每次查询的最大记录数
+    max-records-per-poll: 100
+
+    # 自动清理配置
+    auto-cleanup:
+      # 是否启用自动清理（生产环境建议启用）
+      enabled: true
+      # 清理任务的 cron 表达式（默认每天凌晨 3 点）
+      cron-expression: "0 0 3 * * ?"
+
+  # 通知配置
+  notify:
+    # 启用的通知渠道（email, webhook）
+    enabled-notifiers: email,webhook
+    # 通知间隔（秒），防止同一问题频繁通知
+    notify-interval: 3600
+    # 严重程度阈值（低于此值不通知）
+    severity-threshold: 3.0
+
+    email:
+      enabled: true
+      from: DB-Doctor <noreply@example.com>
+      to:
+        - dba@example.com
+        - dev-team@example.com
+      cc:
+        - manager@example.com
+
+    webhook:
+      dingtalk:
+        enabled: false
+        webhook-url: https://oapi.dingtalk.com/robot/send?access_token=xxx
+        secret: SEC***
+      feishu:
+        enabled: false
+        webhook-url: https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+      wecom:
+        enabled: false
+        webhook-url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+
+  # 线程池配置
+  thread-pool:
+    # AI 分析线程池
+    ai-analysis:
+      core-size: 2
+      max-size: 4
+      queue-capacity: 50
+
+# LangChain4j 配置
+# 注意：API Key 等敏感信息请在 application-local.yml 中配置
+langchain4j:
+  open-ai:
+    model-name: gpt-4
+    base-url: https://api.openai.com/v1
+    temperature: 0.0
+    timeout: 60s
+    max-tokens: 2000
+    # api-key 在 application-local.yml 中配置
+
+# 日志配置
+logging:
+  level:
+    com.dbdoctor: INFO
+    org.springframework.jdbc: WARN
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+  file:
+    name: logs/db-doctor.log
+    max-size: 100MB
+    max-history: 30
