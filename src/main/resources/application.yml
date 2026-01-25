@@ -1,5 +1,7 @@
 server:
   port: 8080
+  # 优雅停机配置
+  shutdown: graceful
 
 spring:
   application:
@@ -7,6 +9,10 @@ spring:
   # 激活的配置文件（local、dev、prod）
   profiles:
     active: local
+
+  # 优雅停机等待时间
+  lifecycle:
+    timeout-per-shutdown-phase: 60s
 
   # === H2 主数据源配置 ===
   # 用途：存储 DB-Doctor 自己的数据（分析历史、SQL 指纹等）
@@ -59,9 +65,9 @@ db-doctor:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # username 和 password 在 application-local.yml 中配置
 
-  # AI 配置
+  # AI 配置（当前版本已禁用）
   ai:
-    enabled: true
+    enabled: false  # 设置为 true 启用 AI 功能
     # 一次分析的最大日志数量（防止过载）
     max-concurrent-analysis: 4
 
@@ -69,8 +75,9 @@ db-doctor:
   slow-log-monitor:
     # 轮询间隔（毫秒），默认 60 秒
     poll-interval-ms: 60000
-    # 每次查询的最大记录数
+    # 每次最多读取 100 条（分批拉取保护）
     max-records-per-poll: 100
+    # 注意：不补发历史数据，游标始终从"当前时间"开始
 
     # 自动清理配置
     auto-cleanup:
@@ -87,6 +94,14 @@ db-doctor:
     notify-interval: 3600
     # 严重程度阈值（低于此值不通知）
     severity-threshold: 3.0
+
+    # 智能通知策略配置
+    # 冷却期时间（小时）- 防止频繁通知
+    cool-down-hours: 1
+    # 性能恶化倍率 - 触发二次唤醒通知（默认 1.5，即耗时增加 50%）
+    degradation-multiplier: 1.5
+    # 高频异常阈值 - 24小时内的出现次数（默认 100 次）
+    high-frequency-threshold: 2
 
     email:
       enabled: true
@@ -109,6 +124,22 @@ db-doctor:
         enabled: false
         webhook-url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
 
+  # PENDING 任务重试配置
+  retry:
+    # 是否启用 PENDING 补扫
+    enabled: true
+    # 最大重试次数
+    max-attempts: 3
+    # 补扫间隔（毫秒），默认 10 分钟
+    pending-interval-ms: 600000
+
+  # 优雅停机配置
+  shutdown:
+    # 等待任务完成的最长时间（秒）
+    await-termination-seconds: 50
+    # 停机时是否清空队列
+    clear-queue-on-shutdown: true
+
   # 线程池配置
   thread-pool:
     # AI 分析线程池
@@ -121,12 +152,13 @@ db-doctor:
 # 注意：API Key 等敏感信息请在 application-local.yml 中配置
 langchain4j:
   open-ai:
-    model-name: gpt-4
-    base-url: https://api.openai.com/v1
-    temperature: 0.0
-    timeout: 60s
-    max-tokens: 2000
-    # api-key 在 application-local.yml 中配置
+    chat-model:
+      model-name: gpt-4
+      base-url: https://api.openai.com/v1
+      temperature: 0.0
+      timeout: 60s
+      max-tokens: 2000
+      # api-key 在 application-local.yml 中配置
 
 # 日志配置
 logging:

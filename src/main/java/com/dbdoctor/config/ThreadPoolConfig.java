@@ -31,9 +31,16 @@ public class ThreadPoolConfig {
     @Value("${db-doctor.thread-pool.ai-analysis.queue-capacity:50}")
     private int queueCapacity;
 
+    @Value("${db-doctor.shutdown.await-termination-seconds:50}")
+    private int awaitTerminationSeconds;
+
     /**
      * AI 分析线程池
      * 用于异步处理慢查询分析任务
+     *
+     * 优化点：
+     * 1. 拒绝策略：CallerRunsPolicy（背压机制）
+     * 2. 优雅停机：等待任务完成后才关闭
      */
     @Bean("analysisExecutor")
     public Executor analysisExecutor() {
@@ -51,19 +58,19 @@ public class ThreadPoolConfig {
         // 线程名称前缀
         executor.setThreadNamePrefix("db-doctor-analysis-");
 
-        // 拒绝策略：调用者运行，保证任务不丢失
+        // 【关键配置 1】拒绝策略：调用者运行（背压机制）
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
-        // 等待所有任务结束后再关闭线程池
+        // 【关键配置 2】停机时等待任务完成
         executor.setWaitForTasksToCompleteOnShutdown(true);
 
-        // 等待时间（秒）
-        executor.setAwaitTerminationSeconds(60);
+        // 【关键配置 3】等待任务完成的最长时间
+        executor.setAwaitTerminationSeconds(awaitTerminationSeconds);
 
         executor.initialize();
 
-        log.info("🔧 AI 分析线程池初始化完成: coreSize={}, maxSize={}, queueCapacity={}",
-                coreSize, maxSize, queueCapacity);
+        log.info("🔧 AI 分析线程池初始化完成: coreSize={}, maxSize={}, queueCapacity={}, awaitTermination={}s",
+                coreSize, maxSize, queueCapacity, awaitTerminationSeconds);
 
         return executor;
     }

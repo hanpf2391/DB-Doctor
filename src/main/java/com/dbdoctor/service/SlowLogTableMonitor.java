@@ -1,6 +1,7 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.config.SlowLogMonitorProperties;
+import com.dbdoctor.lifecycle.ShutdownManager;
 import com.dbdoctor.model.SlowQueryLog;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,11 @@ import java.util.Map;
  * 2. 启动时初始化为当前时间，避免处理历史旧数据
  * 3. 每次轮询查询 start_time > lastCheckTime 的记录
  * 4. 处理完更新 lastCheckTime 为最新记录的时间
+ *
+ * 优化点（V2.0）：
+ * 1. 停机感知：检测到 ShutdownManager.isShuttingDown 时停止扫描
+ * 2. 分批拉取：每次最多读取 maxRecordsPerPoll 条，防止 OOM
+ * 3. 设计理念：不补发历史数据，游标始终从"当前时间"开始
  *
  * 数据源说明：
  * - 使用 targetJdbcTemplate（连接用户的 MySQL）
@@ -59,12 +65,15 @@ public class SlowLogTableMonitor {
      */
     @PostConstruct
     public void init() {
+        // ✅ 游标初始化为当前时间（不补发历史数据）
         this.lastCheckTime = Timestamp.valueOf(LocalDateTime.now());
+
         log.info("🔍 DB-Doctor 慢查询表监控已启动");
-        log.info("   监听时间点: {}", lastCheckTime);
-        log.info("   轮询间隔: {} ms", properties.getPollIntervalMs());
-        log.info("   每次最大记录数: {}", properties.getMaxRecordsPerPoll());
-        log.info("   自动清理: {}", properties.getAutoCleanup().getEnabled() ? "启用 (cron=" + properties.getAutoCleanup().getCronExpression() + ")" : "禁用");
+        log.info("   📢 设计理念：实时监控，不补发历史数据");
+        log.info("   ⏰ 监听起始时间: {}", lastCheckTime);
+        log.info("   🔄 轮询间隔: {} ms", properties.getPollIntervalMs());
+        log.info("   📦 每次最大记录数: {}", properties.getMaxRecordsPerPoll());
+        log.info("   🧹 自动清理: {}", properties.getAutoCleanup().getEnabled() ? "启用 (cron=" + properties.getAutoCleanup().getCronExpression() + ")" : "禁用");
     }
 
     /**
@@ -79,13 +88,19 @@ public class SlowLogTableMonitor {
      */
     @Scheduled(fixedDelayString = "${db-doctor.slow-log-monitor.poll-interval-ms:60000}")
     public void pollSlowLog() {
+        // 【新增】停机感知逻辑
+        if (ShutdownManager.isShuttingDown) {
+            log.debug("正在停机中，跳过本次慢日志扫描");
+            return;
+        }
+
         try {
             String sql = String.format("""
                 SELECT
                     start_time,
                     user_host,
-                    TIME_TO_SEC(query_time) as query_time_sec,
-                    TIME_TO_SEC(lock_time) as lock_time_sec,
+                    TIME_TO_SEC(query_time) + MICROSECOND(query_time)/1000000.0 as query_time_sec,
+                    TIME_TO_SEC(lock_time) + MICROSECOND(lock_time)/1000000.0 as lock_time_sec,
                     rows_sent,
                     rows_examined,
                     db,
@@ -152,7 +167,10 @@ public class SlowLogTableMonitor {
             }
 
         } catch (Exception e) {
-            log.error("❌ 轮询 mysql.slow_log 表失败", e);
+            // 如果不在停机阶段，才记录错误日志
+            if (!ShutdownManager.isShuttingDown) {
+                log.error("❌ 轮询 mysql.slow_log 表失败", e);
+            }
         }
     }
 

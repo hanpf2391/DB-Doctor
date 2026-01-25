@@ -1,0 +1,15 @@
+请分析以下慢查询日志：
+
+数据库：{database}
+慢查询时间：{logTime}
+查询耗时：{queryTime} 秒
+锁等待时间：{lockTime} 秒
+扫描行数：{rowsExamined}
+返回行数：{rowsSent}
+
+SQL 语句：
+```sql
+{sql}
+```
+
+请按照你的分析思维路径，调用工具进行诊断，并给出优化建议。

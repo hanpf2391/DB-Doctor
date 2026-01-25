@@ -1,6 +1,7 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.common.util.SqlFingerprintUtil;
+import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.model.SlowQueryHistory;
 import com.dbdoctor.model.SlowQueryLog;
 import com.dbdoctor.repository.SlowQueryHistoryRepository;
@@ -11,23 +12,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /**
  * 分析服务
- * 负责调用 AI Agent 进行慢查询分析
+ * 负责处理慢查询日志并发送通知
  *
  * 核心功能：
  * 1. 从 mysql.slow_log 表接收慢查询数据
  * 2. 计算 SQL 指纹，去重判断
- * 3. 调用 AI Agent 进行智能分析
- * 4. 生成诊断报告并保存到 H2
- * 5. 发送通知
+ * 3. 统计慢查询数据（平均值、最大值）
+ * 4. 生成报告并发送邮件通知
  *
  * 去重机制：
  * - 使用 SQL 指纹（MD5）判断是否为同一类型的 SQL
- * - 新 SQL：触发 AI 分析
- * - 老 SQL：更新计数，跳过分析（除非满足重新分析条件）
+ * - 新 SQL：触发通知
+ * - 老 SQL：更新计数，根据配置决定是否重新通知
  *
  * @author DB-Doctor
  * @version 2.0.0
@@ -39,8 +40,7 @@ public class AnalysisService {
 
     private final NotifyService notifyService;
     private final SlowQueryHistoryRepository historyRepo;
-
-    // TODO: 注入 DBAgent（AI 分析服务）
+    private final DbDoctorProperties properties;
 
     /**
      * 处理慢查询日志（入口方法）
@@ -77,32 +77,30 @@ public class AnalysisService {
 
     /**
      * 处理已存在的慢查询（老面孔）
+     * 使用原子自增，避免并发统计错误
      *
      * @param history 历史记录
      * @param slowLog 慢查询日志
      * @param cleanedSql 清洗后的 SQL
      */
     private void handleExistingQuery(SlowQueryHistory history, SlowQueryLog slowLog, String cleanedSql) {
-        // 更新统计信息
-        history.updateStatistics(slowLog.getQueryTime(), slowLog.getRowsExamined());
+        String fingerprint = history.getSqlFingerprint();
 
-        // 更新最新样本
-        history.setExampleSql(cleanedSql);
+        // 【优化】使用原子自增更新统计信息
+        // 避免 Java 层面读取-计算-写回导致的并发误差
+        historyRepo.updateStatistics(
+                fingerprint,
+                LocalDateTime.now(),  // now
+                slowLog.getQueryTime(),
+                slowLog.getLockTime(),
+                slowLog.getRowsSent(),
+                slowLog.getRowsExamined()
+        );
 
-        // 判断是否需要重新分析
-        if (history.shouldReAnalyze()) {
-            log.info("🔄 满足重新分析条件: fingerprint={}, count={}",
-                    history.getSqlFingerprint(), history.getOccurrenceCount());
+        log.info("📋 更新重复 SQL 统计: fingerprint={}, db={}", fingerprint, slowLog.getDbName());
 
-            // 触发 AI 分析（异步）
-            runAiAnalysis(history);
-        } else {
-            log.info("📋 重复 SQL，跳过 AI 分析: fingerprint={}, count={}, db={}",
-                    history.getSqlFingerprint(), history.getOccurrenceCount(), slowLog.getDbName());
-        }
-
-        // 保存到 H2
-        historyRepo.save(history);
+        // 触发报告生成和通知（异步，使用智能通知策略判断）
+        generateReportAndNotify(history);
     }
 
     /**
@@ -117,7 +115,7 @@ public class AnalysisService {
         // 提取表名（可选）
         String tableName = extractTableName(cleanedSql);
 
-        // 创建新记录
+        // 创建新记录（包含完整的统计信息）
         SlowQueryHistory history = SlowQueryHistory.builder()
                 .sqlFingerprint(fingerprint)
                 .sqlTemplate(SqlFingerprintUtil.extractTemplate(cleanedSql))
@@ -128,7 +126,16 @@ public class AnalysisService {
                 .lastSeenTime(LocalDateTime.now())
                 .status(SlowQueryHistory.AnalysisStatus.PENDING)
                 .occurrenceCount(1L)
+                // 查询耗时
                 .avgQueryTime(slowLog.getQueryTime())
+                .maxQueryTime(slowLog.getQueryTime())
+                // 锁等待时间
+                .avgLockTime(slowLog.getLockTime())
+                .maxLockTime(slowLog.getLockTime())
+                // 返回行数
+                .avgRowsSent(slowLog.getRowsSent())
+                .maxRowsSent(slowLog.getRowsSent())
+                // 扫描行数
                 .maxRowsExamined(slowLog.getRowsExamined())
                 .build();
 
@@ -138,74 +145,121 @@ public class AnalysisService {
         log.info("✨ 新发现慢查询: fingerprint={}, db={}, table={}",
                 fingerprint, dbName, tableName);
 
-        // 触发 AI 分析（异步）
-        runAiAnalysis(history);
+        // 触发报告生成和通知（异步）
+        generateReportAndNotify(history);
     }
 
     /**
-     * 异步执行 AI 分析
+     * 异步生成报告并发送通知
      *
      * @param history 历史记录
      */
     @Async("analysisExecutor")
     @Transactional
-    public void runAiAnalysis(SlowQueryHistory history) {
+    public void generateReportAndNotify(SlowQueryHistory history) {
         String fingerprint = history.getSqlFingerprint();
+        long startTime = System.currentTimeMillis();
 
         try {
-            log.info("🔬 开始 AI 分析: fingerprint={}", fingerprint);
+            log.info("📋 生成报告: fingerprint={}, db={}, table={}",
+                    fingerprint, history.getDbName(), history.getTableName());
 
-            // 1. 构建分析报告
+            // 1. 构建基础数据报告
             StringBuilder report = new StringBuilder();
-            report.append(String.format("# 慢查询分析报告\n\n"));
+            report.append("# 慢查询分析报告\n\n");
+
+            // === 基本信息 ===
+            report.append("## 基本信息\n\n");
             report.append(String.format("- **指纹**: `%s`\n", fingerprint));
             report.append(String.format("- **数据库**: `%s`\n", history.getDbName()));
-            report.append(String.format("- **出现次数**: %d\n", history.getOccurrenceCount()));
-            report.append(String.format("- **平均耗时**: %.3f 秒\n", history.getAvgQueryTime()));
+            report.append(String.format("- **表**: `%s`\n", history.getTableName()));
+            report.append(String.format("- **首次发现**: %s\n", formatTime(history.getFirstSeenTime())));
+            report.append(String.format("- **最近发现**: %s\n", formatTime(history.getLastSeenTime())));
+            report.append(String.format("- **出现次数**: %d\n\n", history.getOccurrenceCount()));
 
-            // 2. 基础规则分析
-            if (history.getAvgQueryTime() != null && history.getAvgQueryTime() > 5.0) {
-                report.append("\n⚠️ **严重慢查询**：平均耗时超过 5 秒\n");
+            // === 慢查询基础数据 ===
+            report.append("## 慢查询基础数据\n\n");
+
+            // 查询耗时
+            report.append("### 查询耗时\n");
+            if (history.getAvgQueryTime() != null) {
+                report.append(String.format("- **平均耗时**: %.3f 秒\n", history.getAvgQueryTime()));
+            }
+            if (history.getMaxQueryTime() != null) {
+                report.append(String.format("- **最大耗时**: %.3f 秒\n", history.getMaxQueryTime()));
             }
 
-            if (history.getMaxRowsExamined() != null && history.getMaxRowsExamined() > 10000) {
-                report.append("⚠️ **可能存在全表扫描**：最大扫描行数超过 10000\n");
+            // 锁等待时间
+            report.append("\n### 锁等待时间\n");
+            if (history.getAvgLockTime() != null) {
+                report.append(String.format("- **平均锁等待**: %.3f 秒\n", history.getAvgLockTime()));
+            } else {
+                report.append("- **平均锁等待**: 0 秒\n");
+            }
+            if (history.getMaxLockTime() != null) {
+                report.append(String.format("- **最大锁等待**: %.3f 秒\n", history.getMaxLockTime()));
             }
 
-            // 3. SQL 语句示例
+            // 返回行数
+            report.append("\n### 返回行数\n");
+            if (history.getAvgRowsSent() != null) {
+                report.append(String.format("- **平均返回行数**: %d 行\n", history.getAvgRowsSent()));
+            }
+            if (history.getMaxRowsSent() != null) {
+                report.append(String.format("- **最大返回行数**: %d 行\n", history.getMaxRowsSent()));
+            }
+
+            // 扫描行数
+            report.append("\n### 扫描行数\n");
+            if (history.getMaxRowsExamined() != null) {
+                report.append(String.format("- **扫描行数**: %d 行\n", history.getMaxRowsExamined()));
+            }
+
+            // 2. SQL 语句
             report.append("\n## SQL 模板\n\n```sql\n");
             report.append(history.getSqlTemplate());
             report.append("\n```\n");
 
-            // 4. SQL 样本
             report.append("\n## SQL 样本（最近一次）\n\n```sql\n");
             report.append(history.getExampleSql());
             report.append("\n```\n");
 
-            // 5. 调用 AI Agent 深度分析（TODO）
-            String aiAnalysis = "";
-            // TODO: 调用 DBAgent 进行深度分析
-            // aiAnalysis = dbAgent.analyze(history);
-
-            if (aiAnalysis != null && !aiAnalysis.isEmpty()) {
-                report.append("\n## AI 深度分析\n\n");
-                report.append(aiAnalysis);
-            }
-
-            // 6. 保存报告到 H2
+            // 3. 保存报告到 H2
             history.setAiAnalysisReport(report.toString());
             history.setStatus(SlowQueryHistory.AnalysisStatus.SUCCESS);
             historyRepo.save(history);
 
-            // 7. 发送通知（如果是严重慢查询）
-            if (history.getAvgQueryTime() != null && history.getAvgQueryTime() > 3.0) {
-                notifyService.sendNotification(report.toString());
+            // 4. 发送通知（使用智能通知策略）
+            log.debug("检查智能通知条件: avgQueryTime={}, coolDownHours={}, degradationMultiplier={}, highFrequencyThreshold={}",
+                    history.getAvgQueryTime(),
+                    properties.getNotify().getCoolDownHours(),
+                    properties.getNotify().getDegradationMultiplier(),
+                    properties.getNotify().getHighFrequencyThreshold());
+
+            // 使用智能通知策略判断是否需要通知
+            if (history.shouldNotify(
+                    properties.getNotify().getCoolDownHours(),
+                    properties.getNotify().getDegradationMultiplier(),
+                    properties.getNotify().getHighFrequencyThreshold())) {
+
+                log.info("📧 触发邮件通知: fingerprint={}, avgQueryTime={}, occurrenceCount={}",
+                        fingerprint, history.getAvgQueryTime(), history.getOccurrenceCount());
+                notifyService.sendNotificationWithRateLimit(fingerprint, report.toString());
+
+                // 更新通知信息（记录本次通知的时间和耗时）
+                history.updateNotificationInfo(history.getAvgQueryTime());
+                historyRepo.save(history);
+            } else {
+                log.info("⏭️ 跳过邮件通知: fingerprint={}, avgQueryTime={}, lastNotifiedTime={}",
+                        fingerprint, history.getAvgQueryTime(), history.getLastNotifiedTime());
             }
 
-            log.info("✅ AI 分析完成: fingerprint={}", fingerprint);
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("✅ 报告生成完成: fingerprint={}, 耗时={}ms", fingerprint, duration);
 
         } catch (Exception e) {
-            log.error("❌ AI 分析失败: fingerprint={}", fingerprint, e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("❌ 报告生成失败: fingerprint={}, 耗时={}ms", fingerprint, duration, e);
 
             // 更新状态为失败
             history.setStatus(SlowQueryHistory.AnalysisStatus.ERROR);
@@ -246,5 +300,18 @@ public class AnalysisService {
             log.warn("提取表名失败: {}", sql, e);
             return "unknown";
         }
+    }
+
+    /**
+     * 格式化时间为友好格式
+     *
+     * @param time 时间
+     * @return 格式化后的时间字符串（yyyy-MM-dd HH:mm:ss）
+     */
+    private String formatTime(LocalDateTime time) {
+        if (time == null) {
+            return "未知";
+        }
+        return time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 }

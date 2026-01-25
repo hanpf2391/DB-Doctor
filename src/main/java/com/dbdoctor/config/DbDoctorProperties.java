@@ -47,6 +47,16 @@ public class DbDoctorProperties {
     private ThreadPoolConfig threadPool = new ThreadPoolConfig();
 
     /**
+     * 重试配置
+     */
+    private RetryConfig retry = new RetryConfig();
+
+    /**
+     * 停机配置
+     */
+    private ShutdownConfig shutdown = new ShutdownConfig();
+
+    /**
      * AI 配置
      */
     @Data
@@ -81,6 +91,26 @@ public class DbDoctorProperties {
          * 严重程度阈值
          */
         private Double severityThreshold = 3.0;
+
+        /**
+         * 冷却期时间（小时）- 防止频繁通知
+         * 默认值：1 小时
+         */
+        private Integer coolDownHours = 1;
+
+        /**
+         * 性能恶化倍率 - 触发二次唤醒通知
+         * 当平均耗时恶化超过此倍率时，即使在冷却期内也会立即通知
+         * 默认值：1.5（即耗时增加 50%）
+         */
+        private Double degradationMultiplier = 1.5;
+
+        /**
+         * 高频异常阈值 - 24小时内的出现次数
+         * 当一天内出现次数超过此阈值时，立即通知
+         * 默认值：100 次
+         */
+        private Integer highFrequencyThreshold = 100;
 
         /**
          * 邮件通知配置
@@ -149,5 +179,42 @@ public class DbDoctorProperties {
         private Integer coreSize = 4;
         private Integer maxSize = 8;
         private Integer queueCapacity = 100;
+    }
+
+    /**
+     * 重试配置
+     */
+    @Data
+    public static class RetryConfig {
+        /**
+         * 是否启用 PENDING 补扫
+         */
+        private Boolean enabled = true;
+
+        /**
+         * 最大重试次数
+         */
+        private Integer maxAttempts = 3;
+
+        /**
+         * 补扫间隔（毫秒），默认 10 分钟
+         */
+        private Long pendingIntervalMs = 600000L;
+    }
+
+    /**
+     * 停机配置
+     */
+    @Data
+    public static class ShutdownConfig {
+        /**
+         * 等待任务完成的最长时间（秒）
+         */
+        private Integer awaitTerminationSeconds = 50;
+
+        /**
+         * 停机时是否清空队列
+         */
+        private Boolean clearQueueOnShutdown = true;
     }
 }
