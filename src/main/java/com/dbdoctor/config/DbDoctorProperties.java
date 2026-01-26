@@ -57,6 +57,11 @@ public class DbDoctorProperties {
     private ShutdownConfig shutdown = new ShutdownConfig();
 
     /**
+     * 环境检查配置
+     */
+    private EnvCheckConfig envCheck = new EnvCheckConfig();
+
+    /**
      * AI 配置
      */
     @Data
@@ -216,5 +221,30 @@ public class DbDoctorProperties {
          * 停机时是否清空队列
          */
         private Boolean clearQueueOnShutdown = true;
+    }
+
+    /**
+     * 环境检查配置
+     */
+    @Data
+    public static class EnvCheckConfig {
+        /**
+         * 是否启用环境检查（默认 false）
+         */
+        private Boolean enabled = false;
+
+        /**
+         * 检查失败时是否阻止应用启动（默认 false）
+         * true: 检查失败抛出异常，应用启动终止
+         * false: 检查失败只记录警告日志，应用继续启动
+         */
+        private Boolean failOnError = false;
+
+        /**
+         * 是否尝试自动修复问题（默认 false）
+         * true: 尝试执行 SET GLOBAL 修复配置（需要 SUPER 权限）
+         * false: 只检查，不修复
+         */
+        private Boolean autoFix = false;
     }
 }

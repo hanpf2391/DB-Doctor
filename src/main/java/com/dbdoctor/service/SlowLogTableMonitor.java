@@ -1,11 +1,12 @@
 package com.dbdoctor.service;
 
+import com.dbdoctor.check.MySqlEnvChecker;
 import com.dbdoctor.config.SlowLogMonitorProperties;
 import com.dbdoctor.lifecycle.ShutdownManager;
 import com.dbdoctor.model.SlowQueryLog;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,8 +29,9 @@ import java.util.Map;
  *
  * 优化点（V2.0）：
  * 1. 停机感知：检测到 ShutdownManager.isShuttingDown 时停止扫描
- * 2. 分批拉取：每次最多读取 maxRecordsPerPoll 条，防止 OOM
- * 3. 设计理念：不补发历史数据，游标始终从"当前时间"开始
+ * 2. 环境感知：动态检查 MySQL 配置，环境不达标时跳过扫描并自动恢复
+ * 3. 分批拉取：每次最多读取 maxRecordsPerPoll 条，防止 OOM
+ * 4. 设计理念：不补发历史数据，游标始终从"当前时间"开始
  *
  * 数据源说明：
  * - 使用 targetJdbcTemplate（连接用户的 MySQL）
@@ -40,7 +42,6 @@ import java.util.Map;
  */
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class SlowLogTableMonitor {
 
     /**
@@ -48,10 +49,23 @@ public class SlowLogTableMonitor {
      * ⚠️ 注意：必须使用 targetJdbcTemplate，不能使用默认的（连接 H2）
      */
     @Qualifier("targetJdbcTemplate")
-    private final JdbcTemplate targetJdbcTemplate;
+    @Autowired
+    private JdbcTemplate targetJdbcTemplate;
 
-    private final AnalysisService analysisService;
-    private final SlowLogMonitorProperties properties;
+    @Autowired
+    private AnalysisService analysisService;
+
+    @Autowired
+    private SlowLogMonitorProperties properties;
+
+    /**
+     * MySQL 环境检查器（可选）
+     * 如果启用了环境检查（db-doctor.env-check.enabled=true），
+     * 监控前会先检查环境健康状态
+     * required=false 表示如果容器中没有此 Bean 也不报错
+     */
+    @Autowired(required = false)
+    private MySqlEnvChecker envChecker;
 
     /**
      * 游标：记录上一次读取到的最后一条日志的时间
@@ -88,12 +102,33 @@ public class SlowLogTableMonitor {
      */
     @Scheduled(fixedDelayString = "${db-doctor.slow-log-monitor.poll-interval-ms:60000}")
     public void pollSlowLog() {
-        // 【新增】停机感知逻辑
+        // 1. 停机感知逻辑
         if (ShutdownManager.isShuttingDown) {
             log.debug("正在停机中，跳过本次慢日志扫描");
             return;
         }
 
+        // 2. 环境感知逻辑（动态门禁）
+        // 如果启用了环境检查，先检查环境是否健康
+        if (envChecker != null) {
+            boolean isHealthy = envChecker.checkQuickly();
+
+            if (!isHealthy) {
+                log.warn("========================================");
+                log.warn("🛑 [环境待就绪] 慢查询监控暂停中");
+                log.warn("📋 {}", envChecker.getDiagnosticInfo());
+                log.warn("💡 提示：请在目标数据库执行以下修复语句，程序会自动感知并恢复监控");
+                log.warn("   SET GLOBAL slow_query_log = 'ON';");
+                log.warn("   SET GLOBAL log_output = 'TABLE';");
+                log.warn("========================================");
+                return; // 环境不健康，跳过本次扫描
+            }
+
+            // 环境健康，继续正常扫描
+            log.debug("✅ 环境检查通过，开始扫描慢查询日志");
+        }
+
+        // 3. 执行慢查询日志扫描
         try {
             String sql = String.format("""
                 SELECT

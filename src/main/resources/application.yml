@@ -65,9 +65,21 @@ db-doctor:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # username 和 password 在 application-local.yml 中配置
 
-  # AI 配置（当前版本已禁用）
+  # === 环境检查配置 ===
+  # 用途：项目启动时检查目标 MySQL 的慢查询配置是否符合要求
+  env-check:
+    # 是否启用环境检查（推荐启用）
+    enabled: false
+    # 检查失败时是否阻止应用启动（false=只记录警告，true=启动失败）
+    fail-on-error: false
+    # 是否尝试自动修复问题（需要 SUPER 权限，不推荐）
+    auto-fix: false
+
+  # AI 配置
   ai:
     enabled: false  # 设置为 true 启用 AI 功能
+    mock-enabled: false  # 【测试模式】启用 Mock AI 模拟耗时
+    mock-delay-seconds: 30  # 【测试模式】模拟耗时（秒）
     # 一次分析的最大日志数量（防止过载）
     max-concurrent-analysis: 4
 
@@ -147,6 +159,11 @@ db-doctor:
       core-size: 2
       max-size: 4
       queue-capacity: 50
+
+  # 性能测试配置
+  test:
+    enabled: false  # 设置为 true 启用性能测试模式
+    scenario: all  # 测试场景：single, batch, duplicate, concurrent, shutdown, all
 
 # LangChain4j 配置
 # 注意：API Key 等敏感信息请在 application-local.yml 中配置
