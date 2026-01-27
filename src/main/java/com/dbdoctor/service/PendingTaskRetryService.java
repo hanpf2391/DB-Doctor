@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PostConstruct;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -37,8 +38,19 @@ public class PendingTaskRetryService {
 
     /**
      * 应用启动时间（用于判断是否为本次运行的任务）
+     * 使用实例字段而非静态字段，避免线程安全问题
      */
-    private static LocalDateTime applicationStartTime = LocalDateTime.now();
+    private LocalDateTime applicationStartTime;
+
+    /**
+     * 初始化应用启动时间
+     * 在依赖注入完成后自动调用
+     */
+    @PostConstruct
+    public void init() {
+        this.applicationStartTime = LocalDateTime.now();
+        log.debug("应用启动时间已记录: {}", applicationStartTime);
+    }
 
     /**
      * 定时补扫任务
