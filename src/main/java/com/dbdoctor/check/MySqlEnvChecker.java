@@ -260,8 +260,9 @@ public class MySqlEnvChecker implements ApplicationRunner {
      */
     private String queryVariable(String varName) {
         return jdbcTemplate.queryForObject(
-            "SHOW VARIABLES LIKE '" + varName + "'",
-            (rs, rowNum) -> rs.getString("Value"));
+            "SHOW VARIABLES LIKE ?",
+            (rs, rowNum) -> rs.getString("Value"),
+            varName);
     }
 
     /**
