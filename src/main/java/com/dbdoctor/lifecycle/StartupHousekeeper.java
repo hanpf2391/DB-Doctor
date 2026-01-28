@@ -1,7 +1,7 @@
 package com.dbdoctor.lifecycle;
 
-import com.dbdoctor.model.SlowQueryHistory;
-import com.dbdoctor.repository.SlowQueryHistoryRepository;
+import com.dbdoctor.model.SlowQueryTemplate;
+import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 启动清理器
+ * 启动清理器（V2.1.0 - 使用 Template 架构）
  * 应用启动后执行一次，清理上次运行遗留的 PENDING 状态记录
  *
  * 核心逻辑：
@@ -23,14 +23,14 @@ import org.springframework.transaction.annotation.Transactional;
  * - ABANDONED 状态可在管理后台查看，但不会自动重试
  *
  * @author DB-Doctor
- * @version 2.0.0
+ * @version 2.1.0
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class StartupHousekeeper implements ApplicationRunner {
 
-    private final SlowQueryHistoryRepository historyRepo;
+    private final SlowQueryTemplateRepository templateRepo;
 
     @Override
     @Transactional
@@ -41,7 +41,7 @@ public class StartupHousekeeper implements ApplicationRunner {
 
         try {
             // 将所有 PENDING 状态改为 ABANDONED
-            int affectedRows = historyRepo.markPendingAsAbandoned();
+            int affectedRows = templateRepo.markPendingAsAbandoned();
 
             if (affectedRows > 0) {
                 log.warn("⚠️  发现 {} 条上次运行中断的记录", affectedRows);

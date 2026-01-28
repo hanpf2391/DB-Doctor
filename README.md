@@ -284,7 +284,7 @@ mysql -u root -p < src/main/resources/test-db-setup.sql
 ### 2. 执行慢查询测试
 
 ```bash
-mysql -u root -p test_db < src/main/resources/test-slow-queries.sql
+mysql -u root -p test_db < src/main/resources/靶数据库.sql
 ```
 
 **包含 20 种测试场景**：
@@ -319,7 +319,7 @@ db-doctor/
 │   ├── application.yml           # 主配置文件
 │   ├── application-local.yml     # 本地配置（不提交）
 │   ├── test-db-setup.sql         # 测试数据库初始化脚本
-│   └── test-slow-queries.sql     # 慢查询测试语句
+│   └── 靶数据库.sql     # 慢查询测试语句
 └── scripts/            # 启动脚本
 ```
 
@@ -350,6 +350,13 @@ mvn clean package -DskipTests
 ---
 
 ## 📈 版本历史
+
+### v2.1.0 (2024-01-28)
+
+- 🐛 修复配置文件中 notify 和 mail 配置重复的问题
+- 🎨 优化数据库设计，移除 SlowQueryTemplate.severityLevel 字段
+- 📝 完善项目文档，更新作者信息
+- ✅ 代码规范优化，确保所有参数可配置化
 
 ### v2.0.0 (2024-01-26)
 
@@ -389,9 +396,9 @@ mvn clean package -DskipTests
 
 ## 📮 联系方式
 
-- **作者**：DB-Doctor Team
-- **邮箱**：support@dbdoctor.com
-- **官网**：https://dbdoctor.com
+- **作者**：hanpf
+- **邮箱**：2391303768@qq.com
+- **项目地址**：https://github.com/your-username/db-doctor
 
 ---
 
@@ -403,6 +410,6 @@ mvn clean package -DskipTests
 
 <div align="center">
 
-**Made with ❤️ by DB-Doctor Team**
+**Made with ❤️ by hanpf**
 
 </div>

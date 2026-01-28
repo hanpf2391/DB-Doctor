@@ -84,7 +84,7 @@ public class MySqlEnvChecker implements ApplicationRunner {
                     "慢查询日志未启用！DB-Doctor 无法捕获慢查询。\n修复命令：SET GLOBAL slow_query_log = 'ON';");
             }
         } catch (Exception e) {
-            addCheckResult("slow_query_log", CheckStatus.ERROR, "检查失败",
+            addCheckResult("slow_query_log", CheckStatus.FAIL, "检查失败",
                 "无法查询 slow_query_log 状态：" + e.getMessage());
         }
     }
@@ -107,7 +107,7 @@ public class MySqlEnvChecker implements ApplicationRunner {
                     "注意：如果使用云数据库（RDS），请前往控制台参数设置页面修改。");
             }
         } catch (Exception e) {
-            addCheckResult("log_output", CheckStatus.ERROR, "检查失败",
+            addCheckResult("log_output", CheckStatus.FAIL, "检查失败",
                 "无法查询 log_output 状态：" + e.getMessage());
         }
     }
@@ -136,7 +136,7 @@ public class MySqlEnvChecker implements ApplicationRunner {
                     "慢查询阈值设置合理");
             }
         } catch (Exception e) {
-            addCheckResult("long_query_time", CheckStatus.ERROR, "检查失败",
+            addCheckResult("long_query_time", CheckStatus.FAIL, "检查失败",
                 "无法查询 long_query_time 状态：" + e.getMessage());
         }
     }

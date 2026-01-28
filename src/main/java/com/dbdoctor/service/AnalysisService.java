@@ -1,10 +1,14 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.common.util.SqlFingerprintUtil;
+import com.dbdoctor.common.util.SqlMaskingUtil;
 import com.dbdoctor.config.DbDoctorProperties;
-import com.dbdoctor.model.SlowQueryHistory;
+import com.dbdoctor.dto.QueryStatisticsDTO;
 import com.dbdoctor.model.SlowQueryLog;
-import com.dbdoctor.repository.SlowQueryHistoryRepository;
+import com.dbdoctor.model.SlowQuerySample;
+import com.dbdoctor.model.SlowQueryTemplate;
+import com.dbdoctor.repository.SlowQuerySampleRepository;
+import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -16,22 +20,22 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /**
- * 分析服务
+ * 分析服务（V2.1.0 - 使用 Template + Sample 架构）
  * 负责处理慢查询日志并发送通知
  *
  * 核心功能：
  * 1. 从 mysql.slow_log 表接收慢查询数据
  * 2. 计算 SQL 指纹，去重判断
- * 3. 统计慢查询数据（平均值、最大值）
+ * 3. 写入 slow_query_template（模板表）和 slow_query_sample（样本表）
  * 4. 生成报告并发送邮件通知
  *
  * 去重机制：
  * - 使用 SQL 指纹（MD5）判断是否为同一类型的 SQL
- * - 新 SQL：触发通知
- * - 老 SQL：更新计数，根据配置决定是否重新通知
+ * - 新 SQL：创建 Template + Sample 记录
+ * - 老 SQL：只新增 Sample 记录，更新 Template 的 lastSeenTime
  *
  * @author DB-Doctor
- * @version 2.0.0
+ * @version 2.1.0
  */
 @Slf4j
 @Service
@@ -39,7 +43,8 @@ import java.util.Optional;
 public class AnalysisService {
 
     private final NotifyService notifyService;
-    private final SlowQueryHistoryRepository historyRepo;
+    private final SlowQueryTemplateRepository templateRepo;
+    private final SlowQuerySampleRepository sampleRepo;
     private final DbDoctorProperties properties;
 
     /**
@@ -63,12 +68,12 @@ public class AnalysisService {
         String fingerprint = SqlFingerprintUtil.calculateFingerprint(cleanedSql);
 
         // 3. 查询 H2 数据库：是否已存在？
-        Optional<SlowQueryHistory> historyOpt = historyRepo.findBySqlFingerprint(fingerprint);
+        Optional<SlowQueryTemplate> templateOpt = templateRepo.findBySqlFingerprint(fingerprint);
 
-        if (historyOpt.isPresent()) {
+        if (templateOpt.isPresent()) {
             // === 情况 A：老面孔（已分析过） ===
-            SlowQueryHistory history = historyOpt.get();
-            handleExistingQuery(history, slowLog, cleanedSql);
+            SlowQueryTemplate template = templateOpt.get();
+            handleExistingQuery(template, slowLog, cleanedSql);
         } else {
             // === 情况 B：新面孔（首次发现） ===
             handleNewQuery(fingerprint, cleanedSql, dbName, slowLog);
@@ -77,34 +82,51 @@ public class AnalysisService {
 
     /**
      * 处理已存在的慢查询（老面孔）
-     * 使用原子自增，避免并发统计错误
      *
-     * @param history 历史记录
+     * 核心逻辑：
+     * - 新增一条 Sample 记录（保留完整历史）
+     * - 更新 Template 的 lastSeenTime
+     * - 触发通知判断
+     *
+     * @param template 模板记录
      * @param slowLog 慢查询日志
      * @param cleanedSql 清洗后的 SQL
      */
-    private void handleExistingQuery(SlowQueryHistory history, SlowQueryLog slowLog, String cleanedSql) {
-        String fingerprint = history.getSqlFingerprint();
+    private void handleExistingQuery(SlowQueryTemplate template, SlowQueryLog slowLog, String cleanedSql) {
+        String fingerprint = template.getSqlFingerprint();
 
-        // 【优化】使用原子自增更新统计信息
-        // 避免 Java 层面读取-计算-写回导致的并发误差
-        historyRepo.updateStatistics(
-                fingerprint,
-                LocalDateTime.now(),  // now
-                slowLog.getQueryTime(),
-                slowLog.getLockTime(),
-                slowLog.getRowsSent(),
-                slowLog.getRowsExamined()
-        );
+        // 1. SQL 脱敏处理（保护敏感数据）
+        String maskedSql = SqlMaskingUtil.maskSensitiveData(cleanedSql);
 
-        log.info("📋 更新重复 SQL 统计: fingerprint={}, db={}", fingerprint, slowLog.getDbName());
+        // 2. 新增 Sample 记录
+        SlowQuerySample sample = SlowQuerySample.builder()
+                .sqlFingerprint(fingerprint)
+                .originalSql(maskedSql)  // 存储脱敏后的 SQL
+                .userHost(slowLog.getUserHost())
+                .queryTime(slowLog.getQueryTime())
+                .lockTime(slowLog.getLockTime())
+                .rowsSent(slowLog.getRowsSent())
+                .rowsExamined(slowLog.getRowsExamined())
+                .capturedAt(slowLog.getStartTime())
+                .build();
+        sampleRepo.save(sample);
 
-        // 触发报告生成和通知（异步，使用智能通知策略判断）
-        generateReportAndNotify(history);
+        // 3. 更新 Template 的 lastSeenTime
+        templateRepo.updateLastSeenTime(fingerprint, LocalDateTime.now());
+
+        log.debug("📋 更新重复 SQL: fingerprint={}, db={}", fingerprint, slowLog.getDbName());
+
+        // 4. 触发报告生成和通知（异步，使用智能通知策略判断）
+        generateReportAndNotify(template);
     }
 
     /**
      * 处理新发现的慢查询（新面孔）
+     *
+     * 核心逻辑：
+     * - 创建一条 Template 记录
+     * - 创建第一条 Sample 记录
+     * - 触发通知
      *
      * @param fingerprint SQL 指纹
      * @param cleanedSql 清洗后的 SQL
@@ -115,198 +137,197 @@ public class AnalysisService {
         // 提取表名（可选）
         String tableName = extractTableName(cleanedSql);
 
-        // 创建新记录（包含完整的统计信息）
-        SlowQueryHistory history = SlowQueryHistory.builder()
+        // 1. 提取 SQL 模板（Druid 参数化，把真实值替换成 ?）
+        String sqlTemplate = SqlFingerprintUtil.extractTemplate(cleanedSql);
+
+        // 2. SQL 脱敏处理（用于 Sample 表存储）
+        String maskedSql = SqlMaskingUtil.maskSensitiveData(cleanedSql);
+
+        // 3. 创建 Template 记录
+        SlowQueryTemplate template = SlowQueryTemplate.builder()
                 .sqlFingerprint(fingerprint)
-                .sqlTemplate(SqlFingerprintUtil.extractTemplate(cleanedSql))
-                .exampleSql(cleanedSql)
+                .sqlTemplate(sqlTemplate)  // ← 存储参数化后的模板（全是 ?）
                 .dbName(dbName)
                 .tableName(tableName)
                 .firstSeenTime(LocalDateTime.now())
                 .lastSeenTime(LocalDateTime.now())
-                .status(SlowQueryHistory.AnalysisStatus.PENDING)
-                .occurrenceCount(1L)
-                // 查询耗时
-                .avgQueryTime(slowLog.getQueryTime())
-                .maxQueryTime(slowLog.getQueryTime())
-                // 锁等待时间
-                .avgLockTime(slowLog.getLockTime())
-                .maxLockTime(slowLog.getLockTime())
-                // 返回行数
-                .avgRowsSent(slowLog.getRowsSent())
-                .maxRowsSent(slowLog.getRowsSent())
-                // 扫描行数
-                .maxRowsExamined(slowLog.getRowsExamined())
+                .status(SlowQueryTemplate.AnalysisStatus.PENDING)
                 .build();
 
-        // 保存到 H2（本地数据库）
-        history = historyRepo.save(history);
+        template = templateRepo.save(template);
+
+        // 4. 创建第一条 Sample 记录
+        SlowQuerySample sample = SlowQuerySample.builder()
+                .sqlFingerprint(fingerprint)
+                .originalSql(maskedSql)  // ← 存储脱敏后的原始 SQL
+                .userHost(slowLog.getUserHost())
+                .queryTime(slowLog.getQueryTime())
+                .lockTime(slowLog.getLockTime())
+                .rowsSent(slowLog.getRowsSent())
+                .rowsExamined(slowLog.getRowsExamined())
+                .capturedAt(slowLog.getStartTime())
+                .build();
+        sampleRepo.save(sample);
 
         log.info("✨ 新发现慢查询: fingerprint={}, db={}, table={}",
                 fingerprint, dbName, tableName);
 
-        // 触发报告生成和通知（异步）
-        generateReportAndNotify(history);
+        // 5. 触发报告生成和通知（异步）
+        generateReportAndNotify(template);
     }
 
     /**
      * 异步生成报告并发送通知
      *
-     * @param history 历史记录
+     * @param template 模板记录
      */
     @Async("analysisExecutor")
     @Transactional
-    public void generateReportAndNotify(SlowQueryHistory history) {
-        String fingerprint = history.getSqlFingerprint();
+    public void generateReportAndNotify(SlowQueryTemplate template) {
+        String fingerprint = template.getSqlFingerprint();
         long startTime = System.currentTimeMillis();
 
         try {
             log.info("📋 生成报告: fingerprint={}, db={}, table={}",
-                    fingerprint, history.getDbName(), history.getTableName());
+                    fingerprint, template.getDbName(), template.getTableName());
 
-            // 1. 构建基础数据报告
+            // 1. 从 Sample 表实时计算统计信息
+            QueryStatisticsDTO stats = sampleRepo.calculateStatistics(fingerprint);
+
+            // 2. 构建基础数据报告
             StringBuilder report = new StringBuilder();
             report.append("# 慢查询分析报告\n\n");
 
             // === 基本信息 ===
             report.append("## 基本信息\n\n");
             report.append(String.format("- **指纹**: `%s`\n", fingerprint));
-            report.append(String.format("- **数据库**: `%s`\n", history.getDbName()));
-            report.append(String.format("- **表**: `%s`\n", history.getTableName()));
-            report.append(String.format("- **首次发现**: %s\n", formatTime(history.getFirstSeenTime())));
-            report.append(String.format("- **最近发现**: %s\n", formatTime(history.getLastSeenTime())));
-            report.append(String.format("- **出现次数**: %d\n\n", history.getOccurrenceCount()));
+            report.append(String.format("- **数据库**: `%s`\n", template.getDbName()));
+            report.append(String.format("- **表**: `%s`\n", template.getTableName()));
+            report.append(String.format("- **首次发现**: %s\n", formatTime(stats.getFirstSeenTime())));
+            report.append(String.format("- **最近发现**: %s\n", formatTime(stats.getLastSeenTime())));
+            report.append(String.format("- **出现次数**: %d\n\n", stats.getOccurrenceCount()));
 
             // === 慢查询基础数据 ===
             report.append("## 慢查询基础数据\n\n");
 
             // 查询耗时
             report.append("### 查询耗时\n");
-            if (history.getAvgQueryTime() != null) {
-                report.append(String.format("- **平均耗时**: %.3f 秒\n", history.getAvgQueryTime()));
-            }
-            if (history.getMaxQueryTime() != null) {
-                report.append(String.format("- **最大耗时**: %.3f 秒\n", history.getMaxQueryTime()));
-            }
+            report.append(String.format("- 平均耗时: **%.3f 秒**\n", stats.getAvgQueryTime()));
+            report.append(String.format("- 最大耗时: **%.3f 秒**\n\n", stats.getMaxQueryTime()));
 
             // 锁等待时间
-            report.append("\n### 锁等待时间\n");
-            if (history.getAvgLockTime() != null) {
-                report.append(String.format("- **平均锁等待**: %.3f 秒\n", history.getAvgLockTime()));
-            } else {
-                report.append("- **平均锁等待**: 0 秒\n");
-            }
-            if (history.getMaxLockTime() != null) {
-                report.append(String.format("- **最大锁等待**: %.3f 秒\n", history.getMaxLockTime()));
-            }
-
-            // 返回行数
-            report.append("\n### 返回行数\n");
-            if (history.getAvgRowsSent() != null) {
-                report.append(String.format("- **平均返回行数**: %d 行\n", history.getAvgRowsSent()));
-            }
-            if (history.getMaxRowsSent() != null) {
-                report.append(String.format("- **最大返回行数**: %d 行\n", history.getMaxRowsSent()));
-            }
+            report.append("### 锁等待时间\n");
+            report.append(String.format("- 平均锁等待: **%.3f 秒**\n", stats.getAvgLockTime()));
+            report.append(String.format("- 最大锁等待: **%.3f 秒**\n\n", stats.getMaxLockTime()));
 
             // 扫描行数
-            report.append("\n### 扫描行数\n");
-            if (history.getMaxRowsExamined() != null) {
-                report.append(String.format("- **扫描行数**: %d 行\n", history.getMaxRowsExamined()));
-            }
+            report.append("### 扫描行数\n");
+            report.append(String.format("- 平均返回行数: %d\n", stats.getAvgRowsSent() != null ? stats.getAvgRowsSent().longValue() : 0));
+            report.append(String.format("- 最大返回行数: %d\n", stats.getMaxRowsSent()));
+            report.append(String.format("- 最大扫描行数: %d\n\n", stats.getMaxRowsExamined()));
 
-            // 2. SQL 语句
-            report.append("\n## SQL 模板\n\n```sql\n");
-            report.append(history.getSqlTemplate());
-            report.append("\n```\n");
+            // SQL 模板
+            report.append("## SQL 模板\n\n");
+            report.append("```sql\n");
+            report.append(template.getSqlTemplate()).append("\n");
+            report.append("```\n\n");
 
-            report.append("\n## SQL 样本（最近一次）\n\n```sql\n");
-            report.append(history.getExampleSql());
-            report.append("\n```\n");
+            // 3. 保存报告到 Template
+            template.setAiAnalysisReport(report.toString());
+            template.setStatus(SlowQueryTemplate.AnalysisStatus.SUCCESS);
+            templateRepo.save(template);
 
-            // 3. 保存报告到 H2
-            history.setAiAnalysisReport(report.toString());
-            history.setStatus(SlowQueryHistory.AnalysisStatus.SUCCESS);
-            historyRepo.save(history);
-
-            // 4. 发送通知（使用智能通知策略）
-            log.debug("检查智能通知条件: avgQueryTime={}, coolDownHours={}, degradationMultiplier={}, highFrequencyThreshold={}",
-                    history.getAvgQueryTime(),
-                    properties.getNotify().getCoolDownHours(),
-                    properties.getNotify().getDegradationMultiplier(),
-                    properties.getNotify().getHighFrequencyThreshold());
-
-            // 使用智能通知策略判断是否需要通知
-            if (history.shouldNotify(
-                    properties.getNotify().getCoolDownHours(),
-                    properties.getNotify().getDegradationMultiplier(),
-                    properties.getNotify().getHighFrequencyThreshold())) {
-
-                log.info("📧 触发邮件通知: fingerprint={}, avgQueryTime={}, occurrenceCount={}",
-                        fingerprint, history.getAvgQueryTime(), history.getOccurrenceCount());
-                notifyService.sendNotificationWithRateLimit(fingerprint, report.toString());
-
-                // 更新通知信息（记录本次通知的时间和耗时）
-                history.updateNotificationInfo(history.getAvgQueryTime());
-                historyRepo.save(history);
-            } else {
-                log.info("⏭️ 跳过邮件通知: fingerprint={}, avgQueryTime={}, lastNotifiedTime={}",
-                        fingerprint, history.getAvgQueryTime(), history.getLastNotifiedTime());
+            // 4. 判断是否需要通知
+            if (shouldNotify(template, stats)) {
+                notifyService.sendNotification(template, stats);
             }
 
             long duration = System.currentTimeMillis() - startTime;
             log.info("✅ 报告生成完成: fingerprint={}, 耗时={}ms", fingerprint, duration);
 
         } catch (Exception e) {
-            long duration = System.currentTimeMillis() - startTime;
-            log.error("❌ 报告生成失败: fingerprint={}, 耗时={}ms", fingerprint, duration, e);
+            log.error("❌ 生成报告失败: fingerprint={}", fingerprint, e);
 
-            // 更新状态为失败
-            history.setStatus(SlowQueryHistory.AnalysisStatus.ERROR);
-            historyRepo.save(history);
+            // 标记状态为 ERROR
+            template.setStatus(SlowQueryTemplate.AnalysisStatus.ERROR);
+            template.setAiAnalysisReport("报告生成失败: " + e.getMessage());
+            templateRepo.save(template);
         }
     }
 
     /**
-     * 从 SQL 中提取表名（简单实现）
+     * 判断是否需要通知
+     *
+     * @param template 模板记录
+     * @param stats 统计信息
+     * @return true-需要通知，false-跳过通知
+     */
+    private boolean shouldNotify(SlowQueryTemplate template, QueryStatisticsDTO stats) {
+        // 1. 检查严重程度阈值
+        if (stats.getAvgQueryTime() < properties.getNotify().getSeverityThreshold()) {
+            log.debug("跳过通知：平均耗时低于阈值 ({} < {})",
+                    stats.getAvgQueryTime(), properties.getNotify().getSeverityThreshold());
+            return false;
+        }
+
+        // 2. 智能通知策略判断
+        int coolDownHours = properties.getNotify().getCoolDownHours();
+        double degradationMultiplier = properties.getNotify().getDegradationMultiplier();
+
+        return template.shouldNotify(coolDownHours, degradationMultiplier, stats.getAvgQueryTime());
+    }
+
+    /**
+     * 提取表名（简单实现）
      *
      * @param sql SQL 语句
-     * @return 表名（如果有）
+     * @return 表名
      */
     private String extractTableName(String sql) {
         try {
-            // 简单提取：匹配 FROM 或 JOIN 后面的表名
-            // 例如：SELECT * FROM users → users
-            // 例如：SELECT * FROM shop.users → shop.users
+            String upperSql = sql.toUpperCase().replaceAll("\\s+", " ");
 
-            String lowerSql = sql.toLowerCase();
-
-            // 查找 FROM
-            int fromIndex = lowerSql.indexOf(" from ");
-            if (fromIndex != -1) {
-                int start = fromIndex + 6; // " from ".length()
-                String sub = sql.substring(start).trim();
-
-                // 提取第一个单词（表名）
-                String[] parts = sub.split("\\s+");
-                if (parts.length > 0) {
-                    return parts[0].replaceAll("[`;,]", ""); // 去除反引号和分号
-                }
+            // FROM table_name
+            int fromIndex = upperSql.indexOf(" FROM ");
+            if (fromIndex > 0) {
+                int start = fromIndex + 6;
+                int end = upperSql.indexOf(' ', start);
+                if (end == -1) end = upperSql.indexOf('(', start);
+                if (end == -1) end = upperSql.length();
+                return sql.substring(start, end).trim().replaceAll("[`;\"]", "");
             }
 
-            return "unknown";
+            // UPDATE table_name
+            int updateIndex = upperSql.indexOf("UPDATE ");
+            if (updateIndex == 0) {
+                int start = 7;
+                int end = upperSql.indexOf(' ', start);
+                if (end == -1) end = upperSql.length();
+                return sql.substring(start, end).trim().replaceAll("[`;\"]", "");
+            }
+
+            // INSERT INTO table_name
+            int insertIndex = upperSql.indexOf("INSERT INTO ");
+            if (insertIndex == 0) {
+                int start = 12;
+                int end = upperSql.indexOf(' ', start);
+                if (end == -1) end = upperSql.indexOf('(', start);
+                if (end == -1) end = upperSql.length();
+                return sql.substring(start, end).trim().replaceAll("[`;\"]", "");
+            }
 
         } catch (Exception e) {
-            log.warn("提取表名失败: {}", sql, e);
-            return "unknown";
+            log.debug("提取表名失败: {}", e.getMessage());
         }
+
+        return "unknown";
     }
 
     /**
-     * 格式化时间为友好格式
+     * 格式化时间
      *
      * @param time 时间
-     * @return 格式化后的时间字符串（yyyy-MM-dd HH:mm:ss）
+     * @return 格式化后的字符串
      */
     private String formatTime(LocalDateTime time) {
         if (time == null) {

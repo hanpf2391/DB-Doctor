@@ -1,12 +1,15 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.config.DbDoctorProperties;
+import com.dbdoctor.dto.QueryStatisticsDTO;
+import com.dbdoctor.model.SlowQueryTemplate;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -80,6 +83,33 @@ public class NotifyService {
 
         // 更新最后通知时间
         lastNotifyTime.put(fingerprint, LocalDateTime.now());
+    }
+
+    /**
+     * 发送邮件通知（V2.1.0 - 支持 Template + Sample 架构）
+     *
+     * 核心功能：
+     * 1. 更新 Template 的通知信息（时间、耗时）
+     * 2. 发送邮件通知
+     *
+     * @param template 模板记录
+     * @param stats 统计信息
+     */
+    @Transactional
+    public void sendNotification(SlowQueryTemplate template, QueryStatisticsDTO stats) {
+        try {
+            // 1. 更新 Template 的通知信息
+            template.updateNotificationInfo(stats.getAvgQueryTime());
+
+            // 2. 发送邮件通知
+            sendNotification(template.getAiAnalysisReport());
+
+            log.info("✅ 通知发送成功: fingerprint={}, avgTime={}s",
+                    template.getSqlFingerprint(), stats.getAvgQueryTime());
+
+        } catch (Exception e) {
+            log.error("❌ 通知发送失败: fingerprint={}", template.getSqlFingerprint(), e);
+        }
     }
 
     /**

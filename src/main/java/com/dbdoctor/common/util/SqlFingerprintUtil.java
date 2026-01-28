@@ -1,12 +1,16 @@
 package com.dbdoctor.common.util;
 
 import com.alibaba.druid.sql.SQLUtils;
+import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.util.JdbcConstants;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * SQL 指纹工具类
@@ -16,8 +20,15 @@ import java.security.NoSuchAlgorithmException;
  * 1. 计算 SQL 指纹（MD5 哈希值）
  * 2. 提取 SQL 模板（参数化后的 SQL）
  *
+ * 标准化处理（V2.1.0）：
+ * - 大小写统一：SELECT / select → SELECT
+ * - 移除反引号：`table` → table
+ * - 移除注释：-- comment → 删除
+ * - 压缩空格：多个空格 → 一个空格
+ * - 移除换行：\n → 空格
+ *
  * @author DB-Doctor
- * @version 2.0.0
+ * @version 2.1.0
  */
 @Slf4j
 public class SqlFingerprintUtil {
@@ -25,10 +36,12 @@ public class SqlFingerprintUtil {
     /**
      * 计算 SQL 指纹
      *
-     * 原理：
-     * 1. 使用 Druid 格式化 SQL，将参数替换为问号
-     *    例如："SELECT * FROM t WHERE id=1" → "SELECT * FROM t WHERE id=?"
-     * 2. 对参数化后的 SQL 计算 MD5 哈希值
+     * 标准化步骤：
+     * 1. 移除 SQL 注释（单行注释和多行注释）
+     * 2. 压缩空白字符（多个空格→一个，换行→空格）
+     * 3. 转大写 + 移除反引号
+     * 4. Druid 参数化（把值替换为 ?）
+     * 5. 计算 MD5
      *
      * @param rawSql 原始 SQL
      * @return MD5 哈希值（32位小写十六进制字符串）
@@ -39,14 +52,35 @@ public class SqlFingerprintUtil {
         }
 
         try {
-            // 1. Druid 格式化：把参数变成问号
-            String sqlTemplate = SQLUtils.format(
-                rawSql,
-                JdbcConstants.MYSQL,
-                SQLUtils.DEFAULT_FORMAT_OPTION
-            );
+            // 1. 移除 SQL 注释
+            String normalized = removeSqlComments(rawSql);
 
-            // 2. 计算 MD5 作为指纹
+            // 2. 压缩空白字符
+            normalized = normalizeWhitespace(normalized);
+
+            // 3. 标准化：转大写 + 移除反引号
+            normalized = normalized
+                    .toUpperCase()
+                    .replaceAll("`", "")
+                    .trim();
+
+            // 4. 解析 SQL 语句并格式化
+            List<SQLStatement> statements = SQLUtils.parseStatements(normalized, JdbcConstants.MYSQL);
+
+            String sqlTemplate;
+            if (statements.isEmpty()) {
+                // 降级：直接参数化
+                sqlTemplate = parameterizeSql(normalized);
+            } else {
+                // 格式化后再参数化
+                String formatted = SQLUtils.toSQLString(statements.get(0), JdbcConstants.MYSQL);
+                sqlTemplate = parameterizeSql(formatted);
+            }
+
+            // 5. 二次标准化（可能会引入多余空格）
+            sqlTemplate = normalizeWhitespace(sqlTemplate);
+
+            // 6. 计算 MD5 作为指纹
             return calculateMD5(sqlTemplate);
 
         } catch (Exception e) {
@@ -68,18 +102,124 @@ public class SqlFingerprintUtil {
         }
 
         try {
-            // Druid 格式化：把参数变成问号
-            return SQLUtils.format(
-                rawSql,
-                JdbcConstants.MYSQL,
-                SQLUtils.DEFAULT_FORMAT_OPTION
-            );
+            // 先标准化
+            String normalized = normalizeWhitespace(rawSql.trim());
+
+            // 解析 SQL 语句
+            List<SQLStatement> statements = SQLUtils.parseStatements(normalized, JdbcConstants.MYSQL);
+
+            if (statements.isEmpty()) {
+                return cleanSql(rawSql);
+            }
+
+            // 格式化 SQL（统一格式）
+            String formatted = SQLUtils.toSQLString(statements.get(0), JdbcConstants.MYSQL);
+
+            // 参数化：使用正则表达式替换常量值
+            String parameterized = parameterizeSql(formatted);
+
+            return parameterized.replaceAll("\\s+", " ").trim();
 
         } catch (Exception e) {
             log.error("提取 SQL 模板失败: {}", rawSql, e);
-            // 降级：返回原始 SQL
-            return rawSql;
+            // 降级：使用简单参数化
+            return parameterizeSql(cleanSql(rawSql));
         }
+    }
+
+    /**
+     * 参数化 SQL（使用正则表达式替换常量值）
+     *
+     * @param sql SQL 语句
+     * @return 参数化后的 SQL
+     */
+    private static String parameterizeSql(String sql) {
+        if (sql == null || sql.isBlank()) {
+            return sql;
+        }
+
+        String result = sql;
+
+        // 1. 替换单引号字符串
+        result = result.replaceAll("'[^']*'", "?");
+
+        // 2. 替换双引号字符串
+        result = result.replaceAll("\"[^\"]*\"", "?");
+
+        // 3. 替换数字（包括小数和负数）
+        // 匹配：123, 123.45, -123, -123.45
+        result = result.replaceAll("\\b-?\\d+(\\.\\d+)?\\b", "?");
+
+        // 4. 替换 NULL 值（不区分大小写）
+        result = Pattern.compile("\\bNULL\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(result)
+                .replaceAll("?");
+
+        // 5. 替换 TRUE/FALSE（不区分大小写）
+        result = Pattern.compile("\\bTRUE\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(result)
+                .replaceAll("?");
+        result = Pattern.compile("\\bFALSE\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(result)
+                .replaceAll("?");
+
+        return result;
+    }
+
+    /**
+     * 移除 SQL 注释
+     *
+     * @param sql 原始 SQL
+     * @return 移除注释后的 SQL
+     */
+    private static String removeSqlComments(String sql) {
+        if (sql == null || sql.isBlank()) {
+            return sql;
+        }
+
+        String result = sql;
+
+        try {
+            // 移除单行注释（-- comment）
+            result = result.replaceAll("--[^\\n]*", "");
+
+            // 移除多行注释（/* comment */）
+            result = result.replaceAll("/\\*.*?\\*/", "");
+
+            // 移除 MySQL 注释（# comment）
+            result = result.replaceAll("#[^\\n]*", "");
+
+        } catch (Exception e) {
+            log.debug("移除 SQL 注释失败: {}", sql, e);
+        }
+
+        return result;
+    }
+
+    /**
+     * 标准化空白字符
+     *
+     * @param sql 原始 SQL
+     * @return 标准化后的 SQL
+     */
+    private static String normalizeWhitespace(String sql) {
+        if (sql == null || sql.isBlank()) {
+            return sql;
+        }
+
+        return sql
+                // 换行符 → 空格
+                .replaceAll("\\r\\n|\\n|\\r", " ")
+                // Tab → 空格
+                .replaceAll("\\t", " ")
+                // 多个空格 → 一个空格
+                .replaceAll(" +", " ")
+                // 括号前后的空格
+                .replaceAll(" \\( ", "(")
+                .replaceAll(" \\)", ")")
+                // 逗号后的空格标准化
+                .replaceAll(", ", ",")
+                .trim();
     }
 
     /**

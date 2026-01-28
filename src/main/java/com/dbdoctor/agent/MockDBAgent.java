@@ -96,7 +96,7 @@ public class MockDBAgent implements DBAgent {
         };
 
         for (int i = 0; i < phases.length; i++) {
-            log.debug("🤖 Mock AI 阶段 {}/3: 耗时 {}ms", i + 1, phases[i]);
+            log.debug("Mock AI 阶段 {}/3: 耗时 {}ms", i + 1, phases[i]);
             Thread.sleep(phases[i]);
         }
     }

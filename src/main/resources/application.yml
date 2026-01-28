@@ -23,6 +23,14 @@ spring:
     # 明确指定使用 H2（防止 Spring Boot 自动选择 MySQL）
     type: com.zaxxer.hikari.HikariDataSource
 
+  # H2 控制台配置（开发环境）
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true  # 允许远程访问
+
   # JPA 配置 (只针对 H2)
   jpa:
     hibernate:
@@ -81,38 +89,68 @@ db-doctor:
     mock-enabled: false  # 【测试模式】启用 Mock AI 模拟耗时
     mock-delay-seconds: 30  # 【测试模式】模拟耗时（秒）
     # 一次分析的最大日志数量（防止过载）
+    # 验证范围：1-50
     max-concurrent-analysis: 4
 
   # 慢查询监控配置
   slow-log-monitor:
-    # 轮询间隔（毫秒），默认 60 秒
-    poll-interval-ms: 60000
+    # ⚠️ 轮询间隔：自适应调整（不可配置），根据慢查询负载自动调整：
+    # - 高负载（>100条/10分钟）: 5秒轮询
+    # - 中负载（10-100条/10分钟）: 15秒轮询
+    # - 低负载（<10条/10分钟）: 60秒轮询
     # 每次最多读取 100 条（分批拉取保护）
     max-records-per-poll: 100
     # 注意：不补发历史数据，游标始终从"当前时间"开始
 
     # 自动清理配置
     auto-cleanup:
-      # 是否启用自动清理（生产环境建议启用）
-      enabled: true
+      # 是否启用自动清理（默认关闭，需手动启用）
+      # ⚠️ 注意：默认关闭，避免误操作导致数据丢失
+      enabled: false
+
       # 清理任务的 cron 表达式（默认每天凌晨 3 点）
+      # 常用示例：
+      # - "0 0 3 * * ?"     每天凌晨 3 点（默认）
+      # - "0 0 */6 * * ?"   每 6 小时执行一次
+      # - "0 0 4 * * MON"   每周一凌晨 4 点
+      # - "0 0 2 1 * ?"     每月 1 号凌晨 2 点
       cron-expression: "0 0 3 * * ?"
+
+      # 是否允许回退到 TRUNCATE 模式（默认禁止）
+      # ⚠️ 警告：TRUNCATE 会清空整个表，包括未处理的数据，可能导致数据丢失
+      # ✅ 推荐：将 mysql.slow_log 表改为 InnoDB 引擎以支持安全清理
+      #
+      # 如何改为 InnoDB 引擎（推荐）：
+      # SET GLOBAL slow_query_log = 'OFF';
+      # ALTER TABLE mysql.slow_log ENGINE = InnoDB;
+      # SET GLOBAL slow_query_log = 'ON';
+      #
+      # 注意事项：
+      # 1. 如果 slow_log 表是 InnoDB 引擎，会使用安全的 DELETE WHERE（基于游标）
+      # 2. 如果 slow_log 表是 CSV 引擎（MySQL 默认），且 allow-truncate=false，则跳过清理
+      # 3. 如果 slow_log 表是 CSV 引擎，且 allow-truncate=true，会使用 TRUNCATE（⚠️ 有数据丢失风险）
+      allow-truncate: false
 
   # 通知配置
   notify:
     # 启用的通知渠道（email, webhook）
     enabled-notifiers: email,webhook
     # 通知间隔（秒），防止同一问题频繁通知
+    # 验证范围：60-86400（1分钟-1天）
     notify-interval: 3600
     # 严重程度阈值（低于此值不通知）
+    # 验证范围：1.0-10.0
     severity-threshold: 3.0
 
     # 智能通知策略配置
     # 冷却期时间（小时）- 防止频繁通知
+    # 验证范围：1-168（1小时-1周）
     cool-down-hours: 1
     # 性能恶化倍率 - 触发二次唤醒通知（默认 1.5，即耗时增加 50%）
+    # 验证范围：1.1-10.0
     degradation-multiplier: 1.5
     # 高频异常阈值 - 24小时内的出现次数（默认 100 次）
+    # 验证范围：1-10000
     high-frequency-threshold: 2
 
     email:
@@ -141,24 +179,33 @@ db-doctor:
     # 是否启用 PENDING 补扫
     enabled: true
     # 最大重试次数
+    # 验证范围：1-10
     max-attempts: 3
     # 补扫间隔（毫秒），默认 10 分钟
+    # 验证范围：1000-3600000（1秒-1小时）
     pending-interval-ms: 600000
 
   # 优雅停机配置
   shutdown:
     # 等待任务完成的最长时间（秒）
+    # 验证范围：1-300（1秒-5分钟）
     await-termination-seconds: 50
     # 停机时是否清空队列
     clear-queue-on-shutdown: true
 
   # 线程池配置
   thread-pool:
-    # AI 分析线程池
+    # AI 分析线程池（IO 密集型任务推荐配置）
     ai-analysis:
-      core-size: 2
-      max-size: 4
-      queue-capacity: 50
+      # 核心线程数：保持常驻线程（建议值为 CPU 核心数）
+      # 验证范围：1-64
+      core-size: 4
+      # 最大线程数：峰值时可扩展（建议值为 CPU 核心数 * 4）
+      # 验证范围：1-256
+      max-size: 16
+      # 队列容量：缓冲突发任务（建议值 100-200）
+      # 验证范围：10-10000
+      queue-capacity: 200
 
   # 性能测试配置
   test:

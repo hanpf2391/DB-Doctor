@@ -4,6 +4,7 @@ import com.dbdoctor.check.MySqlEnvChecker;
 import com.dbdoctor.config.SlowLogMonitorProperties;
 import com.dbdoctor.lifecycle.ShutdownManager;
 import com.dbdoctor.model.SlowQueryLog;
+import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,16 +17,23 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 慢查询日志表监控服务
- * 使用定时轮询方式从 mysql.slow_log 表读取慢查询数据
+ * 慢查询日志表监控服务（自适应轮询版本）
  *
  * 核心机制：
  * 1. 使用 lastCheckTime 作为游标，记录上一次读取到的最后一条日志的时间
  * 2. 启动时初始化为当前时间，避免处理历史旧数据
  * 3. 每次轮询查询 start_time > lastCheckTime 的记录
  * 4. 处理完更新 lastCheckTime 为最新记录的时间
+ *
+ * 自适应轮询（V2.1 优化）：
+ * - 根据慢查询数量自动调整轮询频率
+ * - 高负载（>100条/10分钟）：5秒轮询
+ * - 中负载（10-100条/10分钟）：15秒轮询
+ * - 低负载（<10条/10分钟）：60秒轮询
+ * - 避免用户配置错误导致性能问题
  *
  * 优化点（V2.0）：
  * 1. 停机感知：检测到 ShutdownManager.isShuttingDown 时停止扫描
@@ -38,11 +46,54 @@ import java.util.Map;
  * - 只读访问，零侵入
  *
  * @author DB-Doctor
- * @version 2.0.0
+ * @version 2.1.0
  */
 @Service
 @Slf4j
 public class SlowLogTableMonitor {
+
+    // ==================== 自适应轮询参数（常量，写死在代码中） ====================
+
+    /**
+     * 基础检查间隔：5秒
+     * 用于检查是否需要执行轮询
+     */
+    private static final long BASE_CHECK_INTERVAL_MS = 5000L;
+
+    /**
+     * 高负载轮询间隔：5秒
+     * 条件：最近10分钟慢查询 > 100条
+     */
+    private static final long HIGH_LOAD_INTERVAL_MS = 5000L;
+
+    /**
+     * 中负载轮询间隔：15秒
+     * 条件：最近10分钟慢查询 10-100条
+     */
+    private static final long MEDIUM_LOAD_INTERVAL_MS = 15000L;
+
+    /**
+     * 低负载轮询间隔：60秒
+     * 条件：最近10分钟慢查询 < 10条
+     */
+    private static final long LOW_LOAD_INTERVAL_MS = 60000L;
+
+    /**
+     * 负载统计时间窗口：10分钟
+     */
+    private static final int LOAD_STATISTICS_WINDOW_MINUTES = 10;
+
+    /**
+     * 高负载阈值：10分钟内超过此数量视为高负载
+     */
+    private static final int HIGH_LOAD_THRESHOLD = 100;
+
+    /**
+     * 低负载阈值：10分钟内低于此数量视为低负载
+     */
+    private static final int LOW_LOAD_THRESHOLD = 10;
+
+    // ==================== 依赖注入 ====================
 
     /**
      * 用户 MySQL 的 JdbcTemplate（目标数据源）
@@ -59,6 +110,12 @@ public class SlowLogTableMonitor {
     private SlowLogMonitorProperties properties;
 
     /**
+     * 慢查询模板Repository（用于统计负载）
+     */
+    @Autowired
+    private SlowQueryTemplateRepository templateRepo;
+
+    /**
      * MySQL 环境检查器（可选）
      * 如果启用了环境检查（db-doctor.env-check.enabled=true），
      * 监控前会先检查环境健康状态
@@ -67,11 +124,18 @@ public class SlowLogTableMonitor {
     @Autowired(required = false)
     private MySqlEnvChecker envChecker;
 
+    // ==================== 状态字段 ====================
+
     /**
      * 游标：记录上一次读取到的最后一条日志的时间
      * 初始值设为当前时间，避免应用重启后处理历史旧数据
      */
     private Timestamp lastCheckTime;
+
+    /**
+     * 上次轮询时间（用于自适应轮询）
+     */
+    private final AtomicLong lastPollTime = new AtomicLong(System.currentTimeMillis());
 
     /**
      * 初始化方法
@@ -82,31 +146,117 @@ public class SlowLogTableMonitor {
         // ✅ 游标初始化为当前时间（不补发历史数据）
         this.lastCheckTime = Timestamp.valueOf(LocalDateTime.now());
 
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         log.info("🔍 DB-Doctor 慢查询表监控已启动");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         log.info("   📢 设计理念：实时监控，不补发历史数据");
         log.info("   ⏰ 监听起始时间: {}", lastCheckTime);
-        log.info("   🔄 轮询间隔: {} ms", properties.getPollIntervalMs());
+        log.info("   🔄 自适应轮询：已启用");
+        log.info("      ├─ 高负载（>100条/10分钟）: {} 秒", HIGH_LOAD_INTERVAL_MS / 1000);
+        log.info("      ├─ 中负载（10-100条/10分钟）: {} 秒", MEDIUM_LOAD_INTERVAL_MS / 1000);
+        log.info("      └─ 低负载（<10条/10分钟）: {} 秒", LOW_LOAD_INTERVAL_MS / 1000);
         log.info("   📦 每次最大记录数: {}", properties.getMaxRecordsPerPoll());
         log.info("   🧹 自动清理: {}", properties.getAutoCleanup().getEnabled() ? "启用 (cron=" + properties.getAutoCleanup().getCronExpression() + ")" : "禁用");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    }
+
+    /**
+     * 自适应轮询：基础检查任务
+     *
+     * 每5秒检查一次是否需要执行轮询
+     * 根据慢查询数量动态决定是否真正执行轮询
+     */
+    @Scheduled(fixedDelay = BASE_CHECK_INTERVAL_MS)
+    public void adaptivePoll() {
+        // 1. 停机感知逻辑
+        if (ShutdownManager.isShuttingDown) {
+            log.debug("正在停机中，跳过本次慢日志扫描");
+            return;
+        }
+
+        // 2. 环境感知逻辑（动态门禁）
+        if (envChecker != null) {
+            boolean isHealthy = envChecker.checkQuickly();
+            if (!isHealthy) {
+                log.debug("环境检查未通过，跳过本次检查");
+                return;
+            }
+        }
+
+        // 3. 计算当前应该使用的轮询间隔
+        long interval = calculateAdaptiveInterval();
+
+        // 4. 判断是否需要执行轮询
+        long elapsed = System.currentTimeMillis() - lastPollTime.get();
+        if (elapsed >= interval) {
+            // 执行轮询
+            pollSlowLog();
+
+            // 更新上次轮询时间
+            lastPollTime.set(System.currentTimeMillis());
+        } else {
+            // 跳过本次轮询
+            log.trace("跳过轮询：距上次 {}ms，需等待 {}ms",
+                elapsed, interval - elapsed);
+        }
+    }
+
+    /**
+     * 计算自适应轮询间隔
+     *
+     * @return 应该使用的轮询间隔（毫秒）
+     */
+    private long calculateAdaptiveInterval() {
+        // 统计最近10分钟的慢查询数量
+        int recentCount = countRecentSlowQueries(LOAD_STATISTICS_WINDOW_MINUTES);
+
+        // 根据负载返回对应的间隔
+        if (recentCount > HIGH_LOAD_THRESHOLD) {
+            return HIGH_LOAD_INTERVAL_MS;
+        } else if (recentCount >= LOW_LOAD_THRESHOLD) {
+            return MEDIUM_LOAD_INTERVAL_MS;
+        } else {
+            return LOW_LOAD_INTERVAL_MS;
+        }
+    }
+
+    /**
+     * 统计最近 N 分钟的慢查询数量
+     *
+     * @param minutes 时间窗口（分钟）
+     * @return 慢查询数量
+     */
+    private int countRecentSlowQueries(int minutes) {
+        try {
+            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(minutes);
+            Long count = templateRepo.countByLastSeenTimeAfter(cutoff);
+            return count != null ? count.intValue() : 0;
+        } catch (Exception e) {
+            log.warn("统计慢查询数量失败: {}", e.getMessage());
+            return 0;  // 查询失败时返回0，使用低负载策略
+        }
     }
 
     /**
      * 定时任务：轮询 mysql.slow_log 表
      *
      * 查询优化：
-     * 1. TIME_TO_SEC()：直接将时间转换为秒数（Double）
+     * 1. TIME_TO_SEC()：直接将时间转换为秒数
      * 2. CONVERT(sql_text USING utf8)：解决 BLOB 乱码问题
      * 3. WHERE start_time > ?：只查新数据（使用游标）
      * 4. ORDER BY start_time ASC：按时间升序
      * 5. LIMIT：从配置文件读取，防止一次查太多导致内存溢出
      */
-    @Scheduled(fixedDelayString = "${db-doctor.slow-log-monitor.poll-interval-ms:60000}")
-    public void pollSlowLog() {
-        // 1. 停机感知逻辑
-        if (ShutdownManager.isShuttingDown) {
-            log.debug("正在停机中，跳过本次慢日志扫描");
-            return;
-        }
+    private void pollSlowLog() {
+        // 统计当前负载并记录日志
+        int recentCount = countRecentSlowQueries(LOAD_STATISTICS_WINDOW_MINUTES);
+        long interval = calculateAdaptiveInterval();
+
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        log.info("🔄 开始轮询 mysql.slow_log 表");
+        log.info("   📊 最近10分钟慢查询: {} 条", recentCount);
+        log.info("   ⏱️  当前轮询间隔: {} 秒", interval / 1000);
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         // 2. 环境感知逻辑（动态门禁）
         // 如果启用了环境检查，先检查环境是否健康
@@ -140,7 +290,7 @@ public class SlowLogTableMonitor {
                     rows_examined,
                     db,
                     CONVERT(sql_text USING utf8) AS sql_content
-                FROM mysql.slow_log
+                FROM test.slow_log
                 WHERE start_time > ?
                 ORDER BY start_time ASC
                 LIMIT %d
@@ -210,34 +360,150 @@ public class SlowLogTableMonitor {
     }
 
     /**
-     * 定时清理任务：清理旧的慢查询日志
+     * 定时清理任务：安全清理已处理的慢查询日志
      *
-     * 生产环境的自洁机制：
-     * mysql.slow_log 表会无限增长，必须定期清理
-     * 使用 TRUNCATE TABLE 清空（CSV 引擎不支持 DELETE WHERE）
+     * 安全清理机制：
+     * 1. 只删除游标之前的数据（已处理的数据）
+     * 2. 保留游标之后的数据（正在处理/未处理的数据）
+     * 3. 避免数据丢失，确保业务连续性
      *
-     * 注意：此任务是否执行由配置文件中的 db-doctor.slow-log-monitor.auto-cleanup.enabled 控制
+     * 清理策略：
+     * - 如果 slow_log 表是 InnoDB 引擎：使用 DELETE WHERE start_time < 游标
+     * - 如果 slow_log 表是 CSV 引擎（MySQL 默认）：TRUNCATE TABLE（⚠️ 会丢失数据，需手动改为 InnoDB）
+     *
+     * 注意：
+     * 1. 默认关闭，需在配置文件中启用（db-doctor.slow-log-monitor.auto-cleanup.enabled=true）
+     * 2. 执行时间可配置（默认每天凌晨 3 点）
+     * 3. 建议将 slow_log 表改为 InnoDB 引擎以支持安全清理
      */
     @Scheduled(cron = "${db-doctor.slow-log-monitor.auto-cleanup.cron-expression:0 0 3 * * ?}")
     public void cleanUpSlowLogTable() {
         // 检查是否启用自动清理
         if (!properties.getAutoCleanup().getEnabled()) {
-            log.debug("自动清理功能已禁用，跳过清理任务");
+            log.debug("自动清理功能已禁用（默认关闭），如需启用请在配置文件中设置 db-doctor.slow-log-monitor.auto-cleanup.enabled=true");
             return;
         }
 
-        log.info("🧹 开始清理 mysql.slow_log 表...");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        log.info("🧹 开始安全清理 mysql.slow_log 表...");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         try {
-            // 清理旧数据（TRUNCATE）
+            // 策略 1: 尝试安全删除（基于游标）
+            boolean safeCleanupSuccess = trySafeCleanup();
+
+            if (!safeCleanupSuccess) {
+                // 策略 2: 如果安全删除失败，回退到 TRUNCATE（需用户确认）
+                fallbackToTruncate();
+            }
+
+        } catch (Exception e) {
+            log.error("❌ 清理日志表失败", e);
+        }
+    }
+
+    /**
+     * 尝试安全清理（基于游标）
+     *
+     * @return true-成功, false-失败（需要回退到 TRUNCATE）
+     */
+    private boolean trySafeCleanup() {
+        try {
+            // 检查表引擎
+            String tableEngine = checkTableEngine();
+
+            if ("InnoDB".equals(tableEngine)) {
+                // ✅ InnoDB 引擎，使用安全删除
+                return safeDeleteByCursor();
+            } else {
+                // ⚠️ CSV 引擎，不支持 DELETE WHERE
+                log.warn("⚠️  检测到 mysql.slow_log 表引擎为: {}", tableEngine);
+                log.warn("⚠️  CSV 引擎不支持 DELETE WHERE 操作，无法执行安全清理");
+                log.warn("💡 建议：执行以下命令将表改为 InnoDB 引擎");
+                log.warn("   SET GLOBAL slow_query_log = 'OFF';");
+                log.warn("   ALTER TABLE mysql.slow_log ENGINE = InnoDB;");
+                log.warn("   SET GLOBAL slow_query_log = 'ON';");
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.error("检查表引擎失败", e);
+            return false;
+        }
+    }
+
+    /**
+     * 安全删除（基于游标）
+     * 只删除游标之前的数据，保留游标之后的数据
+     *
+     * @return true-成功
+     */
+    private boolean safeDeleteByCursor() {
+        log.info("📍 当前游标位置: {}", lastCheckTime);
+
+        // 使用 DELETE WHERE 删除游标之前的数据
+        String sql = "DELETE FROM mysql.slow_log WHERE start_time < ?";
+        int deleted = targetJdbcTemplate.update(sql, lastCheckTime);
+
+        log.info("✅ 安全清理完成");
+        log.info("   🗑️  删除记录数: {}", deleted);
+        log.info("   📍 游标位置保持不变: {}", lastCheckTime);
+        log.info("   🛡️  安全保证: 未删除游标之后的数据");
+
+        return true;
+    }
+
+    /**
+     * 回退方案：使用 TRUNCATE
+     * ⚠️ 会清空整个表，包括未处理的数据
+     */
+    private void fallbackToTruncate() {
+        // 检查是否允许回退到 TRUNCATE
+        if (!properties.getAutoCleanup().getAllowTruncate()) {
+            log.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.warn("⛔ 安全清理失败，且配置禁止回退到 TRUNCATE");
+            log.warn("💡 请执行以下操作：");
+            log.warn("   1. 将 mysql.slow_log 表改为 InnoDB 引擎：");
+            log.warn("      ALTER TABLE mysql.slow_log ENGINE = InnoDB;");
+            log.warn("   2. 或者在配置文件中允许回退：");
+            log.warn("      db-doctor.slow-log-monitor.auto-cleanup.allow-truncate=true");
+            log.warn("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            return;
+        }
+
+        log.warn("⚠️  回退到 TRUNCATE 模式");
+        log.warn("⚠️  这将清空整个表，包括未处理的数据");
+
+        try {
+            // TRUNCATE TABLE
             targetJdbcTemplate.execute("TRUNCATE TABLE mysql.slow_log");
 
             // 重置游标为当前时间
             this.lastCheckTime = Timestamp.valueOf(LocalDateTime.now());
 
-            log.info("✅ 清理完成，游标已重置为: {}", lastCheckTime);
+            log.warn("✅ TRUNCATE 完成");
+            log.warn("   🗑️  已清空整个表");
+            log.warn("   📍 游标已重置为: {}", lastCheckTime);
+
         } catch (Exception e) {
-            log.error("❌ 清理日志表失败", e);
+            log.error("❌ TRUNCATE 失败", e);
         }
+    }
+
+    /**
+     * 检查 mysql.slow_log 表的引擎
+     *
+     * @return 表引擎（InnoDB/CSV）
+     */
+    private String checkTableEngine() {
+        String sql = """
+            SELECT ENGINE
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = 'mysql'
+            AND TABLE_NAME = 'slow_log'
+            """;
+
+        return targetJdbcTemplate.queryForObject(sql, String.class);
     }
 
     /**

@@ -3,16 +3,21 @@ package com.dbdoctor.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 
 /**
- * DB-Doctor 项目配置属性
+ * DB-Doctor 项目配置属性（带验证）
  * 统一管理项目相关的配置参数
+ * 使用 JSR-303/380 Bean Validation 进行配置验证
  *
  * @author DB-Doctor
  * @version 1.0.0
  */
 @Data
 @Component
+@Validated
 @ConfigurationProperties(prefix = "db-doctor")
 public class DbDoctorProperties {
 
@@ -34,31 +39,37 @@ public class DbDoctorProperties {
     /**
      * AI 配置
      */
+    @Valid
     private AiConfig ai = new AiConfig();
 
     /**
      * 通知配置
      */
+    @Valid
     private NotifyConfig notify = new NotifyConfig();
 
     /**
      * 线程池配置
      */
+    @Valid
     private ThreadPoolConfig threadPool = new ThreadPoolConfig();
 
     /**
      * 重试配置
      */
+    @Valid
     private RetryConfig retry = new RetryConfig();
 
     /**
      * 停机配置
      */
+    @Valid
     private ShutdownConfig shutdown = new ShutdownConfig();
 
     /**
      * 环境检查配置
      */
+    @Valid
     private EnvCheckConfig envCheck = new EnvCheckConfig();
 
     /**
@@ -73,7 +84,10 @@ public class DbDoctorProperties {
 
         /**
          * 最大并发分析数量
+         * 范围：1-50
          */
+        @Min(value = 1, message = "最大并发分析数量至少为 1")
+        @Max(value = 50, message = "最大并发分析数量最多为 50")
         private Integer maxConcurrentAnalysis = 4;
     }
 
@@ -89,42 +103,59 @@ public class DbDoctorProperties {
 
         /**
          * 通知间隔（秒）
+         * 范围：60-86400（1分钟-1天）
          */
+        @Min(value = 60, message = "通知间隔至少 60 秒")
+        @Max(value = 86400, message = "通知间隔最多 86400 秒（1天）")
         private Integer notifyInterval = 3600;
 
         /**
          * 严重程度阈值
+         * 范围：1.0-10.0
          */
+        @DecimalMin(value = "1.0", message = "严重程度阈值至少 1.0")
+        @DecimalMax(value = "10.0", message = "严重程度阈值最多 10.0")
         private Double severityThreshold = 3.0;
 
         /**
          * 冷却期时间（小时）- 防止频繁通知
          * 默认值：1 小时
+         * 范围：1-168（1小时-1周）
          */
+        @Min(value = 1, message = "冷却期至少 1 小时")
+        @Max(value = 168, message = "冷却期最长 1 周（168 小时）")
         private Integer coolDownHours = 1;
 
         /**
          * 性能恶化倍率 - 触发二次唤醒通知
          * 当平均耗时恶化超过此倍率时，即使在冷却期内也会立即通知
          * 默认值：1.5（即耗时增加 50%）
+         * 范围：1.1-10.0
          */
+        @DecimalMin(value = "1.1", message = "性能恶化倍率至少 1.1")
+        @DecimalMax(value = "10.0", message = "性能恶化倍率最多 10.0")
         private Double degradationMultiplier = 1.5;
 
         /**
          * 高频异常阈值 - 24小时内的出现次数
          * 当一天内出现次数超过此阈值时，立即通知
          * 默认值：100 次
+         * 范围：1-10000
          */
+        @Min(value = 1, message = "高频阈值至少 1")
+        @Max(value = 10000, message = "高频阈值最多 10000")
         private Integer highFrequencyThreshold = 100;
 
         /**
          * 邮件通知配置
          */
+        @Valid
         private EmailConfig email = new EmailConfig();
 
         /**
          * Webhook 通知配置
          */
+        @Valid
         private WebhookConfig webhook = new WebhookConfig();
     }
 
@@ -134,9 +165,12 @@ public class DbDoctorProperties {
     @Data
     public static class EmailConfig {
         private Boolean enabled = true;
+
+        @Email(message = "发件人邮箱格式不正确")
         private String from;
-        private java.util.List<String> to;
-        private java.util.List<String> cc;
+
+        private java.util.List<@Email(message = "收件人邮箱格式不正确") String> to;
+        private java.util.List<@Email(message = "抄送人邮箱格式不正确") String> cc;
     }
 
     /**
@@ -144,27 +178,37 @@ public class DbDoctorProperties {
      */
     @Data
     public static class WebhookConfig {
+        @Valid
         private DingTalkConfig dingtalk;
+        @Valid
         private FeishuConfig feishu;
+        @Valid
         private WecomConfig wecom;
     }
 
     @Data
     public static class DingTalkConfig {
         private Boolean enabled = false;
+
+        @Pattern(regexp = "^https?://.*", message = "钉钉 Webhook URL 格式不正确")
         private String webhookUrl;
+
         private String secret;
     }
 
     @Data
     public static class FeishuConfig {
         private Boolean enabled = false;
+
+        @Pattern(regexp = "^https?://.*", message = "飞书 Webhook URL 格式不正确")
         private String webhookUrl;
     }
 
     @Data
     public static class WecomConfig {
         private Boolean enabled = false;
+
+        @Pattern(regexp = "^https?://.*", message = "企业微信 Webhook URL 格式不正确")
         private String webhookUrl;
     }
 
@@ -173,6 +217,7 @@ public class DbDoctorProperties {
      */
     @Data
     public static class ThreadPoolConfig {
+        @Valid
         private ExecutorConfig aiAnalysis = new ExecutorConfig();
     }
 
@@ -181,9 +226,29 @@ public class DbDoctorProperties {
      */
     @Data
     public static class ExecutorConfig {
+        /**
+         * 核心线程数
+         * 范围：1-64
+         */
+        @Min(value = 1, message = "核心线程数至少为 1")
+        @Max(value = 64, message = "核心线程数最多为 64")
         private Integer coreSize = 4;
-        private Integer maxSize = 8;
-        private Integer queueCapacity = 100;
+
+        /**
+         * 最大线程数
+         * 范围：1-256
+         */
+        @Min(value = 1, message = "最大线程数至少为 1")
+        @Max(value = 256, message = "最大线程数最多为 256")
+        private Integer maxSize = 16;
+
+        /**
+         * 队列容量
+         * 范围：10-10000
+         */
+        @Min(value = 10, message = "队列容量至少为 10")
+        @Max(value = 10000, message = "队列容量最多为 10000")
+        private Integer queueCapacity = 200;
     }
 
     /**
@@ -198,12 +263,18 @@ public class DbDoctorProperties {
 
         /**
          * 最大重试次数
+         * 范围：1-10
          */
+        @Min(value = 1, message = "最大重试次数至少为 1")
+        @Max(value = 10, message = "最大重试次数最多为 10")
         private Integer maxAttempts = 3;
 
         /**
          * 补扫间隔（毫秒），默认 10 分钟
+         * 范围：1000-3600000（1秒-1小时）
          */
+        @Min(value = 1000, message = "补扫间隔至少 1000 毫秒")
+        @Max(value = 3600000, message = "补扫间隔最多 3600000 毫秒（1小时）")
         private Long pendingIntervalMs = 600000L;
     }
 
@@ -214,7 +285,10 @@ public class DbDoctorProperties {
     public static class ShutdownConfig {
         /**
          * 等待任务完成的最长时间（秒）
+         * 范围：1-300（1秒-5分钟）
          */
+        @Min(value = 1, message = "等待时间至少 1 秒")
+        @Max(value = 300, message = "等待时间最多 300 秒（5分钟）")
         private Integer awaitTerminationSeconds = 50;
 
         /**
