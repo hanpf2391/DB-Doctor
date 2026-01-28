@@ -2,7 +2,7 @@ package com.dbdoctor.service;
 
 import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.lifecycle.ShutdownManager;
-import com.dbdoctor.model.SlowQueryTemplate;
+import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

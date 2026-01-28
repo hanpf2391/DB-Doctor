@@ -1,6 +1,6 @@
 package com.dbdoctor.lifecycle;
 
-import com.dbdoctor.model.SlowQueryTemplate;
+import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

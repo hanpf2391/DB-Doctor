@@ -1,4 +1,4 @@
-package com.dbdoctor.model;
+package com.dbdoctor.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

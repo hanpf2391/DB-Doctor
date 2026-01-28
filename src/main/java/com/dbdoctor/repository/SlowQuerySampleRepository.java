@@ -1,7 +1,7 @@
 package com.dbdoctor.repository;
 
-import com.dbdoctor.dto.QueryStatisticsDTO;
-import com.dbdoctor.model.SlowQuerySample;
+import com.dbdoctor.model.QueryStatisticsDTO;
+import com.dbdoctor.entity.SlowQuerySample;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

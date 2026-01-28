@@ -1,4 +1,4 @@
-package com.dbdoctor.dto;
+package com.dbdoctor.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
