@@ -1,10 +1,13 @@
 -- 1. 创建并进入你的测试数据库
 CREATE DATABASE IF NOT EXISTS test;
 USE test;
+SET GLOBAL slow_query_log = 'ON';
+
+SET GLOBAL log_output = 'TABLE';
 
 -- 2. 使用从 MySQL 官方复制的结构，创建一张完全仿真的 slow_log 表
 --    (注意：我们保留了 ENGINE=CSV 和 utf8mb3，以确保 100% 模拟真实环境)
-CREATE TABLE `slow_log` (
+CREATE TABLE  IF NOT EXISTS `slow_log` (
                             `start_time` timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
                             `user_host` mediumtext NOT NULL,
                             `query_time` time(6) NOT NULL,
@@ -43,3 +46,6 @@ VALUES
 
 -- 记录6：【新增】包含手机号的查询，用于测试脱敏
 (NOW(6), 'admin[admin] @ 192.168.1.5 []', '00:00:03.543210', '00:00:00.000010', 1, 120000, 'crm_db', 0, 0, 1, 0x53454C454354202A2046524F4D20637573746F6D6572732057484552452070686F6E65203D2027313338313233343536373827, 77);
+
+
+

@@ -1,77 +1,53 @@
 package com.dbdoctor.agent;
 
 import com.alibaba.fastjson2.JSON;
+import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * SQL 诊断工具箱实现
- * 提供 AI Agent 可调用的数据库诊断工具方法
+ * 数据库诊断工具实现类(非 Spring Bean)
  *
- * 核心功能：
- * - 查询表结构信息
- * - 获取执行计划
- * - 查询表统计信息
- * - 检查索引选择性
- * - 对比 SQL 性能
+ * 核心特性：
+ * - 纯 POJO 类,不被 Spring 代理
+ * - 专门用于 LangChain4j 工具调用
+ * - 避免了 Spring CGLIB 代理导致的工具注册失败问题
  *
- * 注意：推理专家和编码专家通过 Spring 注入，但不作为工具暴露给 AI
+ * 使用方式：
+ * 在 AiConfig 中手动创建实例: new DiagnosticToolsImpl(jdbcTemplate)
  *
  * @author DB-Doctor
  * @version 2.2.0
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-public class SqlDiagnosticsTools implements DiagnosticTools {
+public class DiagnosticToolsImpl implements DiagnosticTools {
 
     private final JdbcTemplate targetJdbcTemplate;
-
-    /**
-     * 推理专家（用于深度分析）
-     * 由 Spring 注入
-     */
-    private ReasoningAgent reasoningAgent;
-
-    /**
-     * 编码专家（用于生成优化代码）
-     * 由 Spring 注入
-     */
-    private CodingAgent codingAgent;
-
-    /**
-     * Spring 注入方法（避免循环依赖）
-     */
-    public void setReasoningAgent(ReasoningAgent reasoningAgent) {
-        this.reasoningAgent = reasoningAgent;
-    }
-
-    public void setCodingAgent(CodingAgent codingAgent) {
-        this.codingAgent = codingAgent;
-    }
-
-    public ReasoningAgent getReasoningAgent() {
-        return reasoningAgent;
-    }
-
-    public CodingAgent getCodingAgent() {
-        return codingAgent;
-    }
 
     /**
      * 获取表结构信息
      *
      * @param database  数据库名
      * @param tableName 表名
-     * @return 表结构信息（JSON 格式字符串）
+     * @return 表结构信息(JSON 格式字符串)
      */
+    @Tool("""
+    获取指定表的结构信息,包括列名、数据类型、是否可空、键类型等。
+
+    参数说明:
+    - database: 数据库名称
+    - tableName: 表名
+
+    返回: JSON 格式的表结构信息
+    """)
+    @Override
     public String getTableSchema(String database, String tableName) {
-        log.info("查询表结构: database={}, table={}", database, tableName);
+        log.info("🔧 [工具调用] 查询表结构: database={}, table={}", database, tableName);
 
         String sql = """
                 SELECT
@@ -87,6 +63,7 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 """;
 
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+        log.info("✅ [工具返回] 查询到 {} 列", result.size());
         return JSON.toJSONString(result);
     }
 
@@ -95,22 +72,25 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
      *
      * @param database 数据库名
      * @param sql      SQL 语句
-     * @return EXPLAIN 结果（JSON 格式字符串）
+     * @return EXPLAIN 结果(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String getExecutionPlan(String database, String sql) {
-        log.info("获取执行计划: database={}, sql={}", database, sql);
+        log.info("🔧 [工具调用] 获取执行计划: database={}, sql={}", database, sql);
 
-        // 数据库名称安全验证（防止 SQL 注入）
+        // 数据库名称安全验证(防止 SQL 注入)
         if (!database.matches("^[a-zA-Z0-9_]+$")) {
             throw new IllegalArgumentException("❌ 无效的数据库名称: " + database);
         }
 
-        // 先切换到目标数据库（因为 JdbcTemplate 连接的是 information_schema）
+        // 先切换到目标数据库(因为 JdbcTemplate 连接的是 information_schema)
         targetJdbcTemplate.execute("USE `" + database + "`");
 
         // 在目标数据库执行 EXPLAIN
         String explainSql = "EXPLAIN " + sql;
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(explainSql);
+        log.info("✅ [工具返回] 执行计划包含 {} 步", result.size());
         return JSON.toJSONString(result);
     }
 
@@ -119,10 +99,12 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
      *
      * @param database  数据库名
      * @param tableName 表名
-     * @return 表统计信息（JSON 格式字符串）
+     * @return 表统计信息(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String getTableStatistics(String database, String tableName) {
-        log.info("查询表统计信息: database={}, table={}", database, tableName);
+        log.info("🔧 [工具调用] 查询表统计信息: database={}, table={}", database, tableName);
 
         String sql = """
                 SELECT
@@ -137,6 +119,7 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 """;
 
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+        log.info("✅ [工具返回] 表统计信息查询完成");
         return JSON.toJSONString(result.isEmpty() ? Map.of() : result.get(0));
     }
 
@@ -145,10 +128,12 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
      *
      * @param database  数据库名
      * @param tableName 表名
-     * @return 索引选择性信息（JSON 格式字符串）
+     * @return 索引选择性信息(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String getIndexSelectivity(String database, String tableName) {
-        log.info("查询索引选择性: database={}, table={}", database, tableName);
+        log.info("🔧 [工具调用] 查询索引选择性: database={}, table={}", database, tableName);
 
         String sql = """
                 SELECT
@@ -164,16 +149,19 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 """;
 
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+        log.info("✅ [工具返回] 索引选择性查询完成,共 {} 个索引字段", result.size());
         return JSON.toJSONString(result);
     }
 
     /**
      * 获取锁等待信息
      *
-     * @return 锁等待信息（JSON 格式字符串）
+     * @return 锁等待信息(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String getLockInfo() {
-        log.info("查询锁等待信息");
+        log.info("🔧 [工具调用] 查询锁等待信息");
 
         String sql = """
                 SELECT
@@ -189,6 +177,7 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 """;
 
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql);
+        log.info("✅ [工具返回] 锁等待信息查询完成,共 {} 个锁等待", result.size());
         return JSON.toJSONString(result);
     }
 
@@ -197,10 +186,12 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
      *
      * @param oldSql 旧 SQL
      * @param newSql 新 SQL
-     * @return 性能对比结果（JSON 格式字符串）
+     * @return 性能对比结果(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String compareSqlPerformance(String oldSql, String newSql) {
-        log.info("对比 SQL 性能: oldSql={}, newSql={}", oldSql, newSql);
+        log.info("🔧 [工具调用] 对比 SQL 性能");
 
         // 执行旧 SQL 并记录性能
         long oldStart = System.currentTimeMillis();
@@ -221,6 +212,7 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 "improvement", String.format("%.2f%%", (1 - (double) newTime / oldTime) * 100)
         );
 
+        log.info("✅ [工具返回] 性能对比完成: 旧SQL {}ms, 新SQL {}ms, 提升 {}", oldTime, newTime, result.get("improvement"));
         return JSON.toJSONString(result);
     }
 
@@ -229,10 +221,12 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
      *
      * @param database  数据库名
      * @param tableName 表名
-     * @return 索引信息（JSON 格式字符串）
+     * @return 索引信息(JSON 格式字符串)
      */
+    @Tool
+    @Override
     public String getTableIndexes(String database, String tableName) {
-        log.info("查询表索引: database={}, table={}", database, tableName);
+        log.info("🔧 [工具调用] 查询表索引: database={}, table={}", database, tableName);
 
         String sql = """
                 SELECT
@@ -246,84 +240,7 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
                 """;
 
         List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+        log.info("✅ [工具返回] 索引信息查询完成,共 {} 个索引", result.size());
         return JSON.toJSONString(result);
-    }
-
-    // === 多 Agent 协作方法 ===
-
-    /**
-     * 咨询推理专家（进行深度推理分析）
-     *
-     * 用途：当主治医生发现复杂问题时，调用推理专家进行深度分析
-     *
-     * @param diagnosisReport 主治医生的初步诊断报告
-     * @param statistics      统计信息（JSON 格式）
-     * @param executionPlan   执行计划（JSON 格式）
-     * @return 推理专家的深度分析报告
-     */
-    public String consultExpert(String diagnosisReport, String statistics, String executionPlan) {
-        log.info("调用推理专家进行深度分析");
-        log.debug("诊断报告: {}", diagnosisReport);
-
-        try {
-            String deepAnalysis = reasoningAgent.performDeepReasoning(
-                diagnosisReport,
-                statistics,
-                executionPlan
-            );
-            log.info("推理专家分析完成");
-            return deepAnalysis;
-        } catch (Exception e) {
-            log.error("推理专家分析失败", e);
-            return "推理专家分析失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 执行 SQL 优化手术（生成优化代码）
-     *
-     * 用途：当需要优化 SQL 或添加索引时，调用编码专家生成优化代码
-     *
-     * @param originalSql  原始 SQL
-     * @param problemDesc  问题描述（来自推理专家的分析）
-     * @param executionPlan 执行计划（JSON 格式）
-     * @return 编码专家生成的优化方案
-     */
-    public String performSurgery(String originalSql, String problemDesc, String executionPlan) {
-        log.info("调用编码专家生成优化方案");
-        log.debug("原始 SQL: {}", originalSql);
-
-        try {
-            String optimizationCode = codingAgent.generateOptimizationCode(
-                originalSql,
-                problemDesc,
-                executionPlan
-            );
-            log.info("编码专家优化方案生成完成");
-            return optimizationCode;
-        } catch (Exception e) {
-            log.error("编码专家生成优化方案失败", e);
-            return "编码专家生成优化方案失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 生成索引创建语句
-     *
-     * @param tableName  表名
-     * @param columns    索引列（逗号分隔）
-     * @param indexType  索引类型（INDEX, UNIQUE INDEX, FULLTEXT INDEX）
-     * @param comment    索引注释
-     * @return 索引创建 SQL
-     */
-    public String generateIndexSql(String tableName, String columns, String indexType, String comment) {
-        log.info("生成索引创建语句: table={}, columns={}, type={}", tableName, columns, indexType);
-
-        try {
-            return codingAgent.generateIndexSql(tableName, columns, indexType, comment);
-        } catch (Exception e) {
-            log.error("生成索引语句失败", e);
-            return "-- 生成索引语句失败: " + e.getMessage();
-        }
     }
 }

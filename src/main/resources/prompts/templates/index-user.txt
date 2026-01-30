@@ -1,0 +1,8 @@
+生成索引创建语句：
+
+表名：{tableName}
+索引列：{columns}
+索引类型：{indexType}
+说明：{comment}
+
+请生成标准的 CREATE INDEX 语句，包含完整的注释。

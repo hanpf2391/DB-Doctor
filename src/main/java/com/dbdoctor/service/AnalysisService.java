@@ -1,10 +1,12 @@
 package com.dbdoctor.service;
 
+import com.dbdoctor.agent.DBAgent;
 import com.dbdoctor.common.util.SqlFingerprintUtil;
 import com.dbdoctor.common.util.SqlMaskingUtil;
 import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.model.QueryStatisticsDTO;
 import com.dbdoctor.model.SlowQueryLog;
+import com.dbdoctor.model.AnalysisContext;
 import com.dbdoctor.entity.SlowQuerySample;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.repository.SlowQuerySampleRepository;
@@ -20,14 +22,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /**
- * 分析服务（V2.1.0 - 使用 Template + Sample 架构）
+ * 分析服务（V2.3.0 - 使用 Template + Sample 架构 + 多 Agent 协作）
  * 负责处理慢查询日志并发送通知
  *
  * 核心功能：
  * 1. 从 mysql.slow_log 表接收慢查询数据
  * 2. 计算 SQL 指纹，去重判断
  * 3. 写入 slow_query_template（模板表）和 slow_query_sample（样本表）
- * 4. 生成报告并发送邮件通知
+ * 4. 调用多 Agent 系统生成分析报告
+ * 5. 发送邮件通知
+ *
+ * 多 Agent 协作：
+ * - DiagnosisAgent（主治医生）：初步诊断
+ * - ReasoningAgent（推理专家）：深度推理（复杂问题）
+ * - CodingAgent（编码专家）：生成优化代码
  *
  * 去重机制：
  * - 使用 SQL 指纹（MD5）判断是否为同一类型的 SQL
@@ -35,7 +43,7 @@ import java.util.Optional;
  * - 老 SQL：只新增 Sample 记录，更新 Template 的 lastSeenTime
  *
  * @author DB-Doctor
- * @version 2.1.0
+ * @version 2.3.0
  */
 @Slf4j
 @Service
@@ -46,6 +54,8 @@ public class AnalysisService {
     private final SlowQueryTemplateRepository templateRepo;
     private final SlowQuerySampleRepository sampleRepo;
     private final DbDoctorProperties properties;
+    private final DBAgent dbAgent;  // 主治医生（单 Agent 模式，保留用于兼容）
+    private final MultiAgentCoordinator multiAgentCoordinator;  // 多 Agent 协调器
 
     /**
      * 处理慢查询日志（入口方法）
@@ -190,7 +200,7 @@ public class AnalysisService {
     }
 
     /**
-     * 异步生成报告并发送通知
+     * 异步生成报告并发送通知（V2.3.0 - 使用多 Agent 协调器）
      *
      * @param template 模板记录
      */
@@ -201,71 +211,100 @@ public class AnalysisService {
         long startTime = System.currentTimeMillis();
 
         try {
-            log.info("📋 生成报告: fingerprint={}, db={}, table={}",
+            log.info("📋 开始多 Agent 协作分析: fingerprint={}, db={}, table={}",
                     fingerprint, template.getDbName(), template.getTableName());
 
-            // 1. 从 Template 表直接读取统计信息（不再实时计算）
-            QueryStatisticsDTO stats = buildStatisticsFromTemplate(template);
+            // 1. 创建数据快照（AnalysisContext）
+            AnalysisContext context = buildAnalysisContext(template);
+            log.info("📸 数据快照创建完成: triggerTime={}, analysisTime={}, dataRange={}",
+                    context.getTriggerTime(), context.getAnalysisTime(), context.getTimeRangeDescription());
 
-            // 2. 构建基础数据报告
-            StringBuilder report = new StringBuilder();
-            report.append("# 慢查询分析报告\n\n");
+            // 2. 调用多 Agent 协调器进行协作分析
+            log.info("🤖 调用多 Agent 协调器进行协作分析...");
+            String aiReport = multiAgentCoordinator.analyze(context);
 
-            // === 基本信息 ===
-            report.append("## 基本信息\n\n");
-            report.append(String.format("- **指纹**: `%s`\n", fingerprint));
-            report.append(String.format("- **数据库**: `%s`\n", template.getDbName()));
-            report.append(String.format("- **表**: `%s`\n", template.getTableName()));
-            report.append(String.format("- **首次发现**: %s\n", formatTime(template.getFirstSeenTime())));
-            report.append(String.format("- **最近发现**: %s\n", formatTime(template.getLastSeenTime())));
-            report.append(String.format("- **出现次数**: %d\n\n", template.getOccurrenceCount()));
-
-            // === 慢查询基础数据 ===
-            report.append("## 慢查询基础数据\n\n");
-
-            // 查询耗时
-            report.append("### 查询耗时\n");
-            report.append(String.format("- 平均耗时: **%.3f 秒**\n", template.getAvgQueryTime()));
-            report.append(String.format("- 最大耗时: **%.3f 秒**\n\n", template.getMaxQueryTime()));
-
-            // 锁等待时间
-            report.append("### 锁等待时间\n");
-            report.append(String.format("- 平均锁等待: **%.3f 秒**\n", template.getAvgLockTime()));
-            report.append(String.format("- 最大锁等待: **%.3f 秒**\n\n", template.getMaxLockTime()));
-
-            // 扫描行数
-            report.append("### 扫描行数\n");
-            report.append(String.format("- 平均返回行数: %d\n", template.getAvgRowsSent() != null ? template.getAvgRowsSent().longValue() : 0));
-            report.append(String.format("- 最大返回行数: %d\n", template.getMaxRowsSent()));
-            report.append(String.format("- 最大扫描行数: %d\n\n", template.getMaxRowsExamined()));
-
-            // SQL 模板
-            report.append("## SQL 模板\n\n");
-            report.append("```sql\n");
-            report.append(template.getSqlTemplate()).append("\n");
-            report.append("```\n\n");
+            log.info("✅ 多 Agent 协作分析完成: fingerprint={}, 报告长度={} 字符", fingerprint, aiReport.length());
 
             // 3. 保存报告到 Template
-            template.setAiAnalysisReport(report.toString());
+            template.setAiAnalysisReport(aiReport);
             template.setStatus(SlowQueryTemplate.AnalysisStatus.SUCCESS);
-            templateRepo.save(template);
 
-            // 4. 判断是否需要通知
+            // 4. 判断是否需要通知，标记通知状态
+            QueryStatisticsDTO stats = buildStatisticsFromTemplate(template);
             if (shouldNotify(template, stats)) {
-                notifyService.sendNotification(template, stats);
+                // 标记为等待通知状态，由定时任务批量发送
+                template.setNotificationStatus(com.dbdoctor.common.enums.NotificationStatus.WAITING);
+                log.info("📬 标记为等待通知状态: fingerprint={}", fingerprint);
+            } else {
+                // 不需要通知，直接标记为已发送
+                template.setNotificationStatus(com.dbdoctor.common.enums.NotificationStatus.SENT);
             }
 
+            templateRepo.save(template);
+
             long duration = System.currentTimeMillis() - startTime;
-            log.info("✅ 报告生成完成: fingerprint={}, 耗时={}ms", fingerprint, duration);
+            log.info("✅ 报告生成完成: fingerprint={}, 总耗时={}ms", fingerprint, duration);
 
         } catch (Exception e) {
-            log.error("❌ 生成报告失败: fingerprint={}", fingerprint, e);
+            log.error("❌ 多 Agent 协作分析失败: fingerprint={}", fingerprint, e);
 
-            // 标记状态为 ERROR
+            // 标记状态为 ERROR，不保存报告
             template.setStatus(SlowQueryTemplate.AnalysisStatus.ERROR);
-            template.setAiAnalysisReport("报告生成失败: " + e.getMessage());
+            template.setAiAnalysisReport(null); // 不保存错误报告
             templateRepo.save(template);
+
+            log.warn("⚠️ AI分析失败，跳过报告生成: fingerprint={}, error={}", fingerprint, e.getMessage());
         }
+    }
+
+    /**
+     * 构建分析上下文（数据快照）
+     *
+     * @param template Template 记录
+     * @return AnalysisContext
+     */
+    private AnalysisContext buildAnalysisContext(SlowQueryTemplate template) {
+        // 1. 读取最近一条样本 SQL
+        String sampleSql = sampleRepo.findRecentSamplesByFingerprint(
+                template.getSqlFingerprint(), 1
+        ).stream()
+         .findFirst()
+         .map(SlowQuerySample::getOriginalSql)
+         .orElse(template.getSqlTemplate());
+
+        // 2. 构建 Template 统计信息快照
+        AnalysisContext.TemplateStatisticsSnapshot statsSnapshot =
+                AnalysisContext.TemplateStatisticsSnapshot.builder()
+                        .dbName(template.getDbName())
+                        .sqlTemplate(template.getSqlTemplate())
+                        .occurrenceCount(template.getOccurrenceCount())
+                        .avgQueryTime(template.getAvgQueryTime())
+                        .maxQueryTime(template.getMaxQueryTime())
+                        .avgLockTime(template.getAvgLockTime())
+                        .maxLockTime(template.getMaxLockTime())
+                        .avgRowsSent(template.getAvgRowsSent() != null ? template.getAvgRowsSent().doubleValue() : 0)
+                        .maxRowsSent(template.getMaxRowsSent())
+                        .avgRowsExamined(template.getAvgRowsExamined() != null ? template.getAvgRowsExamined().doubleValue() : 0)
+                        .maxRowsExamined(template.getMaxRowsExamined())
+                        .firstSeenTime(template.getFirstSeenTime())
+                        .lastSeenTime(template.getLastSeenTime())
+                        .status(template.getStatus())
+                        .lastNotifiedTime(template.getLastNotifiedTime())
+                        .build();
+
+        // 3. 构建 AnalysisContext
+        LocalDateTime now = LocalDateTime.now();
+
+        return AnalysisContext.builder()
+                .sqlFingerprint(template.getSqlFingerprint())
+                .triggerTime(template.getFirstSeenTime())  // 使用首次发现时间作为触发时间
+                .analysisTime(now)                         // 当前分析时间
+                .dataRangeEndTime(now)                      // 数据采样截止时间
+                .templateStats(statsSnapshot)
+                .sampleSql(sampleSql)
+                .dbName(template.getDbName())
+                .tableName(template.getTableName())
+                .build();
     }
 
     /**

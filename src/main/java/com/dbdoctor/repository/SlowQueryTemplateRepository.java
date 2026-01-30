@@ -1,5 +1,6 @@
 package com.dbdoctor.repository;
 
+import com.dbdoctor.common.enums.NotificationStatus;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -99,4 +100,22 @@ public interface SlowQueryTemplateRepository extends JpaRepository<SlowQueryTemp
         @Param("fingerprint") String fingerprint,
         @Param("lastSeenTime") LocalDateTime lastSeenTime
     );
+
+    // === 通知相关查询方法 ===
+
+    /**
+     * 查询所有等待通知的记录
+     *
+     * @param notificationStatus 通知状态
+     * @return 等待通知的记录列表
+     */
+    List<SlowQueryTemplate> findAllByNotificationStatus(NotificationStatus notificationStatus);
+
+    /**
+     * 统计指定通知状态的记录数
+     *
+     * @param notificationStatus 通知状态
+     * @return 记录数
+     */
+    long countByNotificationStatus(NotificationStatus notificationStatus);
 }

@@ -19,6 +19,21 @@ import lombok.NoArgsConstructor;
 public class QueryStatisticsDTO {
 
     /**
+     * SQL 指纹（MD5）
+     */
+    private String fingerprint;
+
+    /**
+     * 数据库名
+     */
+    private String dbName;
+
+    /**
+     * 表名
+     */
+    private String tableName;
+
+    /**
      * 出现次数
      */
     private Long occurrenceCount;
@@ -52,6 +67,11 @@ public class QueryStatisticsDTO {
      * 最大返回行数
      */
     private Long maxRowsSent;
+
+    /**
+     * 平均扫描行数
+     */
+    private Double avgRowsExamined;
 
     /**
      * 最大扫描行数

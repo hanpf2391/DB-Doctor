@@ -2,6 +2,7 @@ package com.dbdoctor.agent;
 
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
+import dev.langchain4j.service.V;
 
 /**
  * DB-Doctor AI Agent 接口
@@ -12,8 +13,11 @@ import dev.langchain4j.service.UserMessage;
  * - 自动调用诊断工具获取数据库信息
  * - 生成专业的优化建议报告
  *
+ * 注意：由于 LangChain4j 0.29.1 在 IDEA 环境下 fromResource 存在兼容性问题，
+ * 提示词暂时硬编码在注解中。外部文件保留在 prompts/ 目录作为文档参考。
+ *
  * @author DB-Doctor
- * @version 1.0.0
+ * @version 2.2.0
  */
 @SystemMessage("""
 你是一位资深 MySQL 数据库专家（DBA），拥有 10 年以上的数据库性能优化经验。
@@ -104,39 +108,9 @@ public interface DBAgent {
     /**
      * 分析慢查询日志
      *
-     * @param database      数据库名
-     * @param logTime       日志时间
-     * @param queryTime     查询耗时（秒）
-     * @param lockTime      锁等待时间（秒）
-     * @param rowsExamined  扫描行数
-     * @param rowsSent      返回行数
-     * @param sql           SQL 语句
+     * @param formattedPrompt 已经格式化的提示词(包含所有慢查询信息)
      * @return 诊断报告（Markdown 格式）
      */
-    @UserMessage("""
-            请分析以下慢查询日志：
-
-            数据库：{database}
-            慢查询时间：{logTime}
-            查询耗时：{queryTime} 秒
-            锁等待时间：{lockTime} 秒
-            扫描行数：{rowsExamined}
-            返回行数：{rowsSent}
-
-            SQL 语句：
-            ```sql
-            {sql}
-            ```
-
-            请按照你的分析思维路径，调用工具进行诊断，并给出优化建议。
-            """)
-    String analyzeSlowLog(
-            String database,
-            String logTime,
-            Double queryTime,
-            Double lockTime,
-            Long rowsExamined,
-            Long rowsSent,
-            String sql
-    );
+    @UserMessage("{{formattedPrompt}}")
+    String analyzeSlowLog(@V("formattedPrompt") String formattedPrompt);
 }

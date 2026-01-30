@@ -18,11 +18,10 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 @Component
 public class PromptUtil {
-
-    @Value("classpath:prompts/AI系统角色提示词.txt")
+    @Value("classpath:prompts/agents/diagnosis-system.txt")
     private Resource systemPromptResource;
 
-    @Value("classpath:prompts/慢查询分析任务提示词.txt")
+    @Value("classpath:prompts/templates/diagnosis-user.txt")
     private Resource userPromptTemplateResource;
 
     private String systemPrompt;

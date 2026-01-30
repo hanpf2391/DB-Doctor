@@ -110,6 +110,14 @@ public class SlowQueryTemplate {
     private Double lastNotifiedAvgTime;
 
     /**
+     * 通知状态（用于定时批量通知）
+     * @see com.dbdoctor.common.enums.NotificationStatus
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private com.dbdoctor.common.enums.NotificationStatus notificationStatus;
+
+    /**
      * 上次执行EXPLAIN的时间
      */
     private LocalDateTime lastExplainTime;

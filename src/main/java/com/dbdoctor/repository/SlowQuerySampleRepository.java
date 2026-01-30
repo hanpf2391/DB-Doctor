@@ -77,7 +77,7 @@ public interface SlowQuerySampleRepository extends JpaRepository<SlowQuerySample
      * @return 统计信息DTO
      */
     @Query("""
-        SELECT new com.dbdoctor.dto.QueryStatisticsDTO(
+        SELECT new com.dbdoctor.model.QueryStatisticsDTO(
             COUNT(s) as occurrenceCount,
             AVG(s.queryTime) as avgQueryTime,
             MAX(s.queryTime) as maxQueryTime,
@@ -85,6 +85,7 @@ public interface SlowQuerySampleRepository extends JpaRepository<SlowQuerySample
             MAX(s.lockTime) as maxLockTime,
             AVG(s.rowsSent) as avgRowsSent,
             MAX(s.rowsSent) as maxRowsSent,
+            AVG(s.rowsExamined) as avgRowsExamined,
             MAX(s.rowsExamined) as maxRowsExamined,
             MIN(s.capturedAt) as firstSeenTime,
             MAX(s.capturedAt) as lastSeenTime
