@@ -62,8 +62,11 @@ spring:
 db-doctor:
   # 项目基本信息
   name: DB-Doctor
-  version: 1.0.0
+  version: 2.2.0
+  build-time: @maven.build.timestamp@
   description: MySQL 慢查询智能诊疗系统
+
+# Git 信息由 git-commit-id-plugin 自动生成，无需手动配置
 
   # === 用户目标数据源配置（MySQL） ===
   # 用途：只读访问用户的 MySQL（查询 slow_log、执行 EXPLAIN）

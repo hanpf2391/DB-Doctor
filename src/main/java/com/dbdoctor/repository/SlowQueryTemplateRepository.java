@@ -1,7 +1,10 @@
 package com.dbdoctor.repository;
 
 import com.dbdoctor.common.enums.NotificationStatus;
+import com.dbdoctor.common.enums.SeverityLevel;
 import com.dbdoctor.entity.SlowQueryTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -118,4 +121,34 @@ public interface SlowQueryTemplateRepository extends JpaRepository<SlowQueryTemp
      * @return 记录数
      */
     long countByNotificationStatus(NotificationStatus notificationStatus);
+
+    // === 报表查询相关方法 ===
+
+    /**
+     * 分页查询慢查询模板（支持筛选）
+     *
+     * @param dbName 数据库名（可选）
+     * @param severityLevel 严重程度（可选）
+     * @param pageable 分页参数
+     * @return 分页结果
+     */
+    @Query("""
+        SELECT t FROM SlowQueryTemplate t
+        WHERE (:dbName IS NULL OR t.dbName = :dbName)
+          AND (:severityLevel IS NULL OR t.severityLevel = :severityLevel)
+        ORDER BY t.lastSeenTime DESC
+        """)
+    Page<SlowQueryTemplate> findByFilters(
+            @Param("dbName") String dbName,
+            @Param("severityLevel") SeverityLevel severityLevel,
+            Pageable pageable
+    );
+
+    /**
+     * 查询指定时间之前的记录（用于数据清理）
+     *
+     * @param cutoffDate 截止时间
+     * @return 需要清理的记录列表
+     */
+    List<SlowQueryTemplate> findByLastSeenTimeBefore(LocalDateTime cutoffDate);
 }

@@ -178,6 +178,14 @@ public class SlowQueryTemplate {
     private Long maxRowsExamined;
 
     /**
+     * 严重程度
+     * 根据平均查询耗时动态计算
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private com.dbdoctor.common.enums.SeverityLevel severityLevel;
+
+    /**
      * 分析状态枚举
      */
     public enum AnalysisStatus {

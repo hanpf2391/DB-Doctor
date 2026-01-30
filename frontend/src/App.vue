@@ -1,0 +1,102 @@
+<template>
+  <el-container class="app-container">
+    <!-- 侧边栏 -->
+    <el-aside width="200px">
+      <div class="logo">
+        <h2>DB-Doctor</h2>
+        <p>v2.2.0</p>
+      </div>
+      <el-menu
+        :default-active="activeMenu"
+        router
+        class="sidebar-menu"
+      >
+        <el-menu-item index="/">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>慢查询报表</span>
+        </el-menu-item>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>设置中心</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <!-- 主内容区 -->
+    <el-container>
+      <el-main>
+        <router-view />
+      </el-main>
+    </el-container>
+  </el-container>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const activeMenu = computed(() => route.path)
+</script>
+
+<style>
+/* 全局样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.app-container {
+  height: 100vh;
+}
+
+.app-container .el-aside {
+  background-color: #409eff;
+  color: #fff;
+}
+
+.app-container .logo {
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-container .logo h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.app-container .logo p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.app-container .sidebar-menu {
+  border: none;
+  background-color: transparent;
+}
+
+.app-container .sidebar-menu .el-menu-item {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.app-container .sidebar-menu .el-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.app-container .sidebar-menu .el-menu-item.is-active {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.app-container .el-main {
+  background-color: #f5f7fa;
+  padding: 20px;
+}
+</style>

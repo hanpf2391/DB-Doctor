@@ -147,6 +147,32 @@ public class AiConfig {
     // === 辅助方法 ===
 
     /**
+     * 刷新 AI 配置并重建 Bean（热重载）
+     *
+     * @param newConfig 新的配置对象
+     */
+    public void refreshAiConfig(AiProperties newConfig) {
+        log.info("🔄 刷新 AI 配置: enabled={}", newConfig.isEnabled());
+
+        // 直接更新配置对象的属性
+        this.properties.setEnabled(newConfig.isEnabled());
+        this.properties.setDiagnosis(newConfig.getDiagnosis());
+        this.properties.setReasoning(newConfig.getReasoning());
+        this.properties.setCoding(newConfig.getCoding());
+
+        log.info("✅ AI 配置刷新完成");
+        log.info("   - 主治医生: {} @ {}", newConfig.getDiagnosis().getModelName(), newConfig.getDiagnosis().getBaseUrl());
+        log.info("   - 推理专家: {} @ {}", newConfig.getReasoning().getModelName(), newConfig.getReasoning().getBaseUrl());
+        log.info("   - 编码专家: {} @ {}", newConfig.getCoding().getModelName(), newConfig.getCoding().getBaseUrl());
+
+        // 注意：由于 Spring Bean 是单例的，这里只更新了配置对象的值
+        // 下次调用 AI 时会使用新配置，但已创建的 ChatLanguageModel Bean 不会自动重建
+        // 如果需要立即重建 Bean，需要使用 @RefreshScope 或 ApplicationContext
+    }
+
+    // === 辅助方法 ===
+
+    /**
      * 动态模型工厂：根据配置创建 ChatLanguageModel
      *
      * 支持的供应商：

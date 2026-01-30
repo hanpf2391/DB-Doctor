@@ -3,6 +3,7 @@ package com.dbdoctor.repository;
 import com.dbdoctor.model.QueryStatisticsDTO;
 import com.dbdoctor.entity.SlowQuerySample;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -103,4 +104,16 @@ public interface SlowQuerySampleRepository extends JpaRepository<SlowQuerySample
      * @return 记录数量
      */
     long countByCapturedAtAfter(LocalDateTime capturedAt);
+
+    /**
+     * 根据 SQL 指纹删除所有样本
+     *
+     * @param sqlFingerprint SQL 指纹
+     */
+    @Modifying
+    @Query("""
+        DELETE FROM SlowQuerySample s
+        WHERE s.sqlFingerprint = :fingerprint
+        """)
+    void deleteBySqlFingerprint(@Param("fingerprint") String sqlFingerprint);
 }

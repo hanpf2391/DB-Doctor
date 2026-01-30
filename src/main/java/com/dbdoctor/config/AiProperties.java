@@ -44,31 +44,43 @@ public class AiProperties {
         /**
          * 供应商类型: ollama, openai, deepseek, aliyun
          */
-        private String provider;
+        private String provider = "ollama";
 
         /**
          * API 基础 URL
          */
-        private String baseUrl;
+        private String baseUrl = "http://localhost:11434";
 
         /**
          * API Key (Ollama 可填任意值)
          */
-        private String apiKey;
+        private String apiKey = "";
 
         /**
          * 模型名称
          */
-        private String modelName;
+        private String modelName = "qwen2.5:7b";
 
         /**
          * 温度参数 (0.0-1.0)
          */
-        private Double temperature;
+        private Double temperature = 0.0;
 
         /**
          * 超时时间（秒）
          */
-        private Long timeoutSeconds;
+        private Long timeoutSeconds = 60L;
+
+        // 无参构造函数
+        public AgentConfig() {}
+
+        // 全参构造函数（用于热重载）
+        public AgentConfig(String provider, String baseUrl, String modelName, double temperature, String apiKey) {
+            this.provider = provider;
+            this.baseUrl = baseUrl;
+            this.modelName = modelName;
+            this.temperature = temperature;
+            this.apiKey = apiKey;
+        }
     }
 }
