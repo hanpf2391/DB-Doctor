@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
  * - 存储SQL模板和指纹（去重标识）
  * - 存储AI分析报告
  * - 存储分析状态和元数据
- * - 不存储统计信息（统计信息从SlowQuerySample实时计算）
+ * - 存储统计信息（从SlowQuerySample聚合计算，实时更新）
  *
  * @author DB-Doctor
  * @version 2.1.0
@@ -121,6 +121,53 @@ public class SlowQueryTemplate {
     @Lob
     @Column(columnDefinition = "TEXT")
     private String lastExplainJson;
+
+    // === 统计信息（从 SlowQuerySample 聚合） ===
+
+    /**
+     * 该SQL指纹出现的总次数
+     */
+    private Long occurrenceCount;
+
+    /**
+     * 平均查询耗时（秒）
+     */
+    private Double avgQueryTime;
+
+    /**
+     * 最大查询耗时（秒）
+     */
+    private Double maxQueryTime;
+
+    /**
+     * 平均锁等待时间（秒）
+     */
+    private Double avgLockTime;
+
+    /**
+     * 最大锁等待时间（秒）
+     */
+    private Double maxLockTime;
+
+    /**
+     * 平均返回行数
+     */
+    private Double avgRowsSent;
+
+    /**
+     * 最大返回行数
+     */
+    private Long maxRowsSent;
+
+    /**
+     * 平均扫描行数
+     */
+    private Double avgRowsExamined;
+
+    /**
+     * 最大扫描行数
+     */
+    private Long maxRowsExamined;
 
     /**
      * 分析状态枚举

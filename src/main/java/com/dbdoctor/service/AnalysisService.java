@@ -85,7 +85,7 @@ public class AnalysisService {
      *
      * 核心逻辑：
      * - 新增一条 Sample 记录（保留完整历史）
-     * - 更新 Template 的 lastSeenTime
+     * - 更新 Template 的统计字段和 lastSeenTime
      * - 触发通知判断
      *
      * @param template 模板记录
@@ -111,12 +111,15 @@ public class AnalysisService {
                 .build();
         sampleRepo.save(sample);
 
-        // 3. 更新 Template 的 lastSeenTime
-        templateRepo.updateLastSeenTime(fingerprint, LocalDateTime.now());
+        // 3. 增量更新 Template 的统计字段和时间信息
+        updateTemplateStatistics(template, slowLog);
+
+        // 4. 保存更新后的 Template
+        templateRepo.save(template);
 
         log.debug("📋 更新重复 SQL: fingerprint={}, db={}", fingerprint, slowLog.getDbName());
 
-        // 4. 触发报告生成和通知（异步，使用智能通知策略判断）
+        // 5. 触发报告生成和通知（异步，使用智能通知策略判断）
         generateReportAndNotify(template);
     }
 
@@ -124,7 +127,7 @@ public class AnalysisService {
      * 处理新发现的慢查询（新面孔）
      *
      * 核心逻辑：
-     * - 创建一条 Template 记录
+     * - 创建一条 Template 记录（包含初始统计信息）
      * - 创建第一条 Sample 记录
      * - 触发通知
      *
@@ -143,7 +146,7 @@ public class AnalysisService {
         // 2. SQL 脱敏处理（用于 Sample 表存储）
         String maskedSql = SqlMaskingUtil.maskSensitiveData(cleanedSql);
 
-        // 3. 创建 Template 记录
+        // 3. 创建 Template 记录（初始化统计字段）
         SlowQueryTemplate template = SlowQueryTemplate.builder()
                 .sqlFingerprint(fingerprint)
                 .sqlTemplate(sqlTemplate)  // ← 存储参数化后的模板（全是 ?）
@@ -152,6 +155,16 @@ public class AnalysisService {
                 .firstSeenTime(LocalDateTime.now())
                 .lastSeenTime(LocalDateTime.now())
                 .status(SlowQueryTemplate.AnalysisStatus.PENDING)
+                // 初始化统计字段（首次出现，所有值都来自第一条样本）
+                .occurrenceCount(1L)
+                .avgQueryTime(slowLog.getQueryTime())
+                .maxQueryTime(slowLog.getQueryTime())
+                .avgLockTime(slowLog.getLockTime())
+                .maxLockTime(slowLog.getLockTime())
+                .avgRowsSent(slowLog.getRowsSent() != null ? slowLog.getRowsSent().doubleValue() : 0.0)
+                .maxRowsSent(slowLog.getRowsSent())
+                .avgRowsExamined(slowLog.getRowsExamined() != null ? slowLog.getRowsExamined().doubleValue() : 0.0)
+                .maxRowsExamined(slowLog.getRowsExamined())
                 .build();
 
         template = templateRepo.save(template);
@@ -191,8 +204,8 @@ public class AnalysisService {
             log.info("📋 生成报告: fingerprint={}, db={}, table={}",
                     fingerprint, template.getDbName(), template.getTableName());
 
-            // 1. 从 Sample 表实时计算统计信息
-            QueryStatisticsDTO stats = sampleRepo.calculateStatistics(fingerprint);
+            // 1. 从 Template 表直接读取统计信息（不再实时计算）
+            QueryStatisticsDTO stats = buildStatisticsFromTemplate(template);
 
             // 2. 构建基础数据报告
             StringBuilder report = new StringBuilder();
@@ -203,28 +216,28 @@ public class AnalysisService {
             report.append(String.format("- **指纹**: `%s`\n", fingerprint));
             report.append(String.format("- **数据库**: `%s`\n", template.getDbName()));
             report.append(String.format("- **表**: `%s`\n", template.getTableName()));
-            report.append(String.format("- **首次发现**: %s\n", formatTime(stats.getFirstSeenTime())));
-            report.append(String.format("- **最近发现**: %s\n", formatTime(stats.getLastSeenTime())));
-            report.append(String.format("- **出现次数**: %d\n\n", stats.getOccurrenceCount()));
+            report.append(String.format("- **首次发现**: %s\n", formatTime(template.getFirstSeenTime())));
+            report.append(String.format("- **最近发现**: %s\n", formatTime(template.getLastSeenTime())));
+            report.append(String.format("- **出现次数**: %d\n\n", template.getOccurrenceCount()));
 
             // === 慢查询基础数据 ===
             report.append("## 慢查询基础数据\n\n");
 
             // 查询耗时
             report.append("### 查询耗时\n");
-            report.append(String.format("- 平均耗时: **%.3f 秒**\n", stats.getAvgQueryTime()));
-            report.append(String.format("- 最大耗时: **%.3f 秒**\n\n", stats.getMaxQueryTime()));
+            report.append(String.format("- 平均耗时: **%.3f 秒**\n", template.getAvgQueryTime()));
+            report.append(String.format("- 最大耗时: **%.3f 秒**\n\n", template.getMaxQueryTime()));
 
             // 锁等待时间
             report.append("### 锁等待时间\n");
-            report.append(String.format("- 平均锁等待: **%.3f 秒**\n", stats.getAvgLockTime()));
-            report.append(String.format("- 最大锁等待: **%.3f 秒**\n\n", stats.getMaxLockTime()));
+            report.append(String.format("- 平均锁等待: **%.3f 秒**\n", template.getAvgLockTime()));
+            report.append(String.format("- 最大锁等待: **%.3f 秒**\n\n", template.getMaxLockTime()));
 
             // 扫描行数
             report.append("### 扫描行数\n");
-            report.append(String.format("- 平均返回行数: %d\n", stats.getAvgRowsSent() != null ? stats.getAvgRowsSent().longValue() : 0));
-            report.append(String.format("- 最大返回行数: %d\n", stats.getMaxRowsSent()));
-            report.append(String.format("- 最大扫描行数: %d\n\n", stats.getMaxRowsExamined()));
+            report.append(String.format("- 平均返回行数: %d\n", template.getAvgRowsSent() != null ? template.getAvgRowsSent().longValue() : 0));
+            report.append(String.format("- 最大返回行数: %d\n", template.getMaxRowsSent()));
+            report.append(String.format("- 最大扫描行数: %d\n\n", template.getMaxRowsExamined()));
 
             // SQL 模板
             report.append("## SQL 模板\n\n");
@@ -334,5 +347,122 @@ public class AnalysisService {
             return "未知";
         }
         return time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /**
+     * 增量更新 Template 的统计字段
+     *
+     * 核心逻辑：
+     * - 使用增量算法更新平均值：新平均值 = (旧平均值 * 旧数量 + 新值) / (旧数量 + 1)
+     * - 更新最大值：如果新值 > 旧最大值，则更新
+     * - 更新出现次数：旧数量 + 1
+     *
+     * @param template 模板记录
+     * @param slowLog 新的慢查询日志
+     */
+    private void updateTemplateStatistics(SlowQueryTemplate template, SlowQueryLog slowLog) {
+        // 更新时间信息
+        template.setLastSeenTime(LocalDateTime.now());
+
+        // 获取当前统计值
+        Long oldCount = template.getOccurrenceCount();
+        if (oldCount == null) {
+            oldCount = 0L;
+        }
+
+        // 1. 更新出现次数
+        template.setOccurrenceCount(oldCount + 1);
+
+        // 2. 更新查询耗时统计
+        Double oldAvgQueryTime = template.getAvgQueryTime();
+        Double oldMaxQueryTime = template.getMaxQueryTime();
+        double newQueryTime = slowLog.getQueryTime();
+
+        if (oldAvgQueryTime != null && oldCount > 0) {
+            // 增量更新平均值
+            template.setAvgQueryTime((oldAvgQueryTime * oldCount + newQueryTime) / (oldCount + 1));
+        } else {
+            // 首次设置
+            template.setAvgQueryTime(newQueryTime);
+        }
+
+        // 更新最大值
+        if (oldMaxQueryTime == null || newQueryTime > oldMaxQueryTime) {
+            template.setMaxQueryTime(newQueryTime);
+        }
+
+        // 3. 更新锁等待时间统计
+        Double oldAvgLockTime = template.getAvgLockTime();
+        Double oldMaxLockTime = template.getMaxLockTime();
+        double newLockTime = slowLog.getLockTime();
+
+        if (oldAvgLockTime != null && oldCount > 0) {
+            template.setAvgLockTime((oldAvgLockTime * oldCount + newLockTime) / (oldCount + 1));
+        } else {
+            template.setAvgLockTime(newLockTime);
+        }
+
+        if (oldMaxLockTime == null || newLockTime > oldMaxLockTime) {
+            template.setMaxLockTime(newLockTime);
+        }
+
+        // 4. 更新返回行数统计
+        Double oldAvgRowsSent = template.getAvgRowsSent();
+        Long oldMaxRowsSent = template.getMaxRowsSent();
+        Long newRowsSent = slowLog.getRowsSent();
+
+        if (newRowsSent != null) {
+            if (oldAvgRowsSent != null && oldCount > 0) {
+                template.setAvgRowsSent((oldAvgRowsSent * oldCount + newRowsSent) / (oldCount + 1));
+            } else {
+                template.setAvgRowsSent(newRowsSent.doubleValue());
+            }
+
+            if (oldMaxRowsSent == null || newRowsSent > oldMaxRowsSent) {
+                template.setMaxRowsSent(newRowsSent);
+            }
+        }
+
+        // 5. 更新扫描行数统计
+        Double oldAvgRowsExamined = template.getAvgRowsExamined();
+        Long oldMaxRowsExamined = template.getMaxRowsExamined();
+        Long newRowsExamined = slowLog.getRowsExamined();
+
+        if (newRowsExamined != null) {
+            if (oldAvgRowsExamined != null && oldCount > 0) {
+                template.setAvgRowsExamined((oldAvgRowsExamined * oldCount + newRowsExamined) / (oldCount + 1));
+            } else {
+                template.setAvgRowsExamined(newRowsExamined.doubleValue());
+            }
+
+            if (oldMaxRowsExamined == null || newRowsExamined > oldMaxRowsExamined) {
+                template.setMaxRowsExamined(newRowsExamined);
+            }
+        }
+    }
+
+    /**
+     * 从 Template 构建 QueryStatisticsDTO 对象
+     *
+     * @param template 模板记录
+     * @return 统计信息 DTO
+     */
+    private QueryStatisticsDTO buildStatisticsFromTemplate(SlowQueryTemplate template) {
+        return QueryStatisticsDTO.builder()
+                .fingerprint(template.getSqlFingerprint())
+                .dbName(template.getDbName())
+                .tableName(template.getTableName())
+                .firstSeenTime(template.getFirstSeenTime())
+                .lastSeenTime(template.getLastSeenTime())
+                .occurrenceCount(template.getOccurrenceCount() != null ? template.getOccurrenceCount() : 0L)
+                .avgQueryTime(template.getAvgQueryTime() != null ? template.getAvgQueryTime() : 0.0)
+                .maxQueryTime(template.getMaxQueryTime() != null ? template.getMaxQueryTime() : 0.0)
+                .avgLockTime(template.getAvgLockTime() != null ? template.getAvgLockTime() : 0.0)
+                .maxLockTime(template.getMaxLockTime() != null ? template.getMaxLockTime() : 0.0)
+                .avgRowsSent(template.getAvgRowsSent())
+                .maxRowsSent(template.getMaxRowsSent() != null ? template.getMaxRowsSent() : 0L)
+                .avgRowsExamined(template.getAvgRowsExamined())
+                .maxRowsExamined(template.getMaxRowsExamined() != null ? template.getMaxRowsExamined() : 0L)
+                .build();
     }
 }
