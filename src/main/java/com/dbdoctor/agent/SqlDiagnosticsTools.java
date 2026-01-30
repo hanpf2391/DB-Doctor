@@ -73,21 +73,32 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getTableSchema(String database, String tableName) {
         log.info("查询表结构: database={}, table={}", database, tableName);
 
-        String sql = """
-                SELECT
-                    COLUMN_NAME as column_name,
-                    COLUMN_TYPE as column_type,
-                    IS_NULLABLE as is_nullable,
-                    COLUMN_KEY as column_key,
-                    COLUMN_DEFAULT as column_default,
-                    EXTRA as extra
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                ORDER BY ORDINAL_POSITION
-                """;
+        try {
+            String sql = """
+                    SELECT
+                        COLUMN_NAME as column_name,
+                        COLUMN_TYPE as column_type,
+                        IS_NULLABLE as is_nullable,
+                        COLUMN_KEY as column_key,
+                        COLUMN_DEFAULT as column_default,
+                        EXTRA as extra
+                    FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                    ORDER BY ORDINAL_POSITION
+                    """;
 
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
-        return JSON.toJSONString(result);
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+
+            if (result.isEmpty()) {
+                log.warn("表结构查询结果为空: database={}, table={}", database, tableName);
+                return "⚠️ 工具执行结果: 表 '" + database + "." + tableName + "' 不存在或无法访问。请检查表名是否正确，或基于 SQL 文本进行静态分析。";
+            }
+
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("查询表结构失败: database={}, table={}", database, tableName, e);
+            return "⚠️ 工具执行失败: 无法获取表 '" + database + "." + tableName + "' 的结构信息。错误: " + e.getMessage() + "。建议基于 SQL 文本进行静态分析。";
+        }
     }
 
     /**
@@ -100,18 +111,29 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getExecutionPlan(String database, String sql) {
         log.info("获取执行计划: database={}, sql={}", database, sql);
 
-        // 数据库名称安全验证（防止 SQL 注入）
-        if (!database.matches("^[a-zA-Z0-9_]+$")) {
-            throw new IllegalArgumentException("❌ 无效的数据库名称: " + database);
+        try {
+            // 数据库名称安全验证（防止 SQL 注入）
+            if (!database.matches("^[a-zA-Z0-9_]+$")) {
+                return "⚠️ 工具执行失败: 无效的数据库名称 '" + database + "'（包含非法字符）。请使用字母、数字和下划线。";
+            }
+
+            // 先切换到目标数据库（因为 JdbcTemplate 连接的是 information_schema）
+            targetJdbcTemplate.execute("USE `" + database + "`");
+
+            // 在目标数据库执行 EXPLAIN
+            String explainSql = "EXPLAIN " + sql;
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(explainSql);
+
+            if (result.isEmpty()) {
+                log.warn("执行计划查询结果为空: database={}", database);
+                return "⚠️ 工具执行结果: 执行计划查询为空，可能是 SQL 语法错误或目标数据库 '" + database + "' 不存在。建议检查 SQL 语法。";
+            }
+
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("获取执行计划失败: database={}, sql={}", database, sql, e);
+            return "⚠️ 工具执行失败: 无法获取数据库 '" + database + "' 的执行计划。错误: " + e.getMessage() + "。建议基于 SQL 文本进行静态分析。";
         }
-
-        // 先切换到目标数据库（因为 JdbcTemplate 连接的是 information_schema）
-        targetJdbcTemplate.execute("USE `" + database + "`");
-
-        // 在目标数据库执行 EXPLAIN
-        String explainSql = "EXPLAIN " + sql;
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(explainSql);
-        return JSON.toJSONString(result);
     }
 
     /**
@@ -124,20 +146,31 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getTableStatistics(String database, String tableName) {
         log.info("查询表统计信息: database={}, table={}", database, tableName);
 
-        String sql = """
-                SELECT
-                    TABLE_ROWS as table_rows,
-                    AVG_ROW_LENGTH as avg_row_length,
-                    DATA_LENGTH as data_length,
-                    INDEX_LENGTH as index_length,
-                    UPDATE_TIME as update_time,
-                    AUTO_INCREMENT as auto_increment
-                FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                """;
+        try {
+            String sql = """
+                    SELECT
+                        TABLE_ROWS as table_rows,
+                        AVG_ROW_LENGTH as avg_row_length,
+                        DATA_LENGTH as data_length,
+                        INDEX_LENGTH as index_length,
+                        UPDATE_TIME as update_time,
+                        AUTO_INCREMENT as auto_increment
+                    FROM information_schema.TABLES
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                    """;
 
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
-        return JSON.toJSONString(result.isEmpty() ? Map.of() : result.get(0));
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+
+            if (result.isEmpty()) {
+                log.warn("表统计信息查询结果为空: database={}, table={}", database, tableName);
+                return "{}";
+            }
+
+            return JSON.toJSONString(result.get(0));
+        } catch (Exception e) {
+            log.error("查询表统计信息失败: database={}, table={}", database, tableName, e);
+            return "{}";
+        }
     }
 
     /**
@@ -150,21 +183,32 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getIndexSelectivity(String database, String tableName) {
         log.info("查询索引选择性: database={}, table={}", database, tableName);
 
-        String sql = """
-                SELECT
-                    INDEX_NAME as index_name,
-                    COLUMN_NAME as column_name,
-                    CARDINALITY as cardinality,
-                    SUBPART as subpart,
-                    NULLABLE as nullable,
-                    INDEX_TYPE as index_type
-                FROM information_schema.STATISTICS
-                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                ORDER BY INDEX_NAME, SEQ_IN_INDEX
-                """;
+        try {
+            String sql = """
+                    SELECT
+                        INDEX_NAME as index_name,
+                        COLUMN_NAME as column_name,
+                        CARDINALITY as cardinality,
+                        SUBPART as subpart,
+                        NULLABLE as nullable,
+                        INDEX_TYPE as index_type
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                    ORDER BY INDEX_NAME, SEQ_IN_INDEX
+                    """;
 
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
-        return JSON.toJSONString(result);
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+
+            if (result.isEmpty()) {
+                log.warn("索引选择性查询结果为空: database={}, table={}", database, tableName);
+                return "⚠️ 工具执行结果: 表 '" + database + "." + tableName + "' 没有索引或表不存在。";
+            }
+
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("查询索引选择性失败: database={}, table={}", database, tableName, e);
+            return "⚠️ 工具执行失败: 无法获取表 '" + database + "." + tableName + "' 的索引信息。错误: " + e.getMessage();
+        }
     }
 
     /**
@@ -175,21 +219,32 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getLockInfo() {
         log.info("查询锁等待信息");
 
-        String sql = """
-                SELECT
-                    r.TRX_ID as waiting_trx_id,
-                    r.TRX_MYSQL_THREAD_ID as waiting_thread,
-                    r.TRX_QUERY as waiting_query,
-                    b.TRX_ID as blocking_trx_id,
-                    b.TRX_MYSQL_THREAD_ID as blocking_thread,
-                    b.TRX_QUERY as blocking_query
-                FROM information_schema.INNODB_LOCK_WAITS w
-                JOIN information_schema.INNODB_TRX b ON b.TRX_ID = w.BLOCKING_TRX_ID
-                JOIN information_schema.INNODB_TRX r ON r.TRX_ID = w.REQUESTING_TRX_ID
-                """;
+        try {
+            String sql = """
+                    SELECT
+                        r.TRX_ID as waiting_trx_id,
+                        r.TRX_MYSQL_THREAD_ID as waiting_thread,
+                        r.TRX_QUERY as waiting_query,
+                        b.TRX_ID as blocking_trx_id,
+                        b.TRX_MYSQL_THREAD_ID as blocking_thread,
+                        b.TRX_QUERY as blocking_query
+                    FROM information_schema.INNODB_LOCK_WAITS w
+                    JOIN information_schema.INNODB_TRX b ON b.TRX_ID = w.BLOCKING_TRX_ID
+                    JOIN information_schema.INNODB_TRX r ON r.TRX_ID = w.REQUESTING_TRX_ID
+                    """;
 
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql);
-        return JSON.toJSONString(result);
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql);
+
+            if (result.isEmpty()) {
+                log.debug("当前无锁等待");
+                return "✅ 工具执行结果: 当前无锁等待";
+            }
+
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("查询锁等待信息失败", e);
+            return "⚠️ 工具执行失败: 无法查询锁等待信息。错误: " + e.getMessage();
+        }
     }
 
     /**
@@ -202,26 +257,31 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String compareSqlPerformance(String oldSql, String newSql) {
         log.info("对比 SQL 性能: oldSql={}, newSql={}", oldSql, newSql);
 
-        // 执行旧 SQL 并记录性能
-        long oldStart = System.currentTimeMillis();
-        List<Map<String, Object>> oldResult = targetJdbcTemplate.queryForList(oldSql);
-        long oldTime = System.currentTimeMillis() - oldStart;
+        try {
+            // 执行旧 SQL 并记录性能
+            long oldStart = System.currentTimeMillis();
+            List<Map<String, Object>> oldResult = targetJdbcTemplate.queryForList(oldSql);
+            long oldTime = System.currentTimeMillis() - oldStart;
 
-        // 执行新 SQL 并记录性能
-        long newStart = System.currentTimeMillis();
-        List<Map<String, Object>> newResult = targetJdbcTemplate.queryForList(newSql);
-        long newTime = System.currentTimeMillis() - newStart;
+            // 执行新 SQL 并记录性能
+            long newStart = System.currentTimeMillis();
+            List<Map<String, Object>> newResult = targetJdbcTemplate.queryForList(newSql);
+            long newTime = System.currentTimeMillis() - newStart;
 
-        // 返回对比结果
-        Map<String, Object> result = Map.of(
-                "oldSqlTime", oldTime + "ms",
-                "newSqlTime", newTime + "ms",
-                "oldRows", oldResult.size(),
-                "newRows", newResult.size(),
-                "improvement", String.format("%.2f%%", (1 - (double) newTime / oldTime) * 100)
-        );
+            // 返回对比结果
+            Map<String, Object> result = Map.of(
+                    "oldSqlTime", oldTime + "ms",
+                    "newSqlTime", newTime + "ms",
+                    "oldRows", oldResult.size(),
+                    "newRows", newResult.size(),
+                    "improvement", oldTime > 0 ? String.format("%.2f%%", (1 - (double) newTime / oldTime) * 100) : "N/A"
+            );
 
-        return JSON.toJSONString(result);
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("对比 SQL 性能失败", e);
+            return "⚠️ 工具执行失败: 无法执行 SQL 性能对比。错误: " + e.getMessage() + "。请检查 SQL 语法或数据库权限。";
+        }
     }
 
     /**
@@ -234,19 +294,30 @@ public class SqlDiagnosticsTools implements DiagnosticTools {
     public String getTableIndexes(String database, String tableName) {
         log.info("查询表索引: database={}, table={}", database, tableName);
 
-        String sql = """
-                SELECT
-                    INDEX_NAME as index_name,
-                    GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) as index_columns,
-                    NON_UNIQUE as non_unique,
-                    INDEX_TYPE as index_type
-                FROM information_schema.STATISTICS
-                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-                GROUP BY INDEX_NAME, NON_UNIQUE, INDEX_TYPE
-                """;
+        try {
+            String sql = """
+                    SELECT
+                        INDEX_NAME as index_name,
+                        GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) as index_columns,
+                        NON_UNIQUE as non_unique,
+                        INDEX_TYPE as index_type
+                    FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+                    GROUP BY INDEX_NAME, NON_UNIQUE, INDEX_TYPE
+                    """;
 
-        List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
-        return JSON.toJSONString(result);
+            List<Map<String, Object>> result = targetJdbcTemplate.queryForList(sql, database, tableName);
+
+            if (result.isEmpty()) {
+                log.warn("表索引查询结果为空: database={}, table={}", database, tableName);
+                return "⚠️ 工具执行结果: 表 '" + database + "." + tableName + "' 没有索引或表不存在。";
+            }
+
+            return JSON.toJSONString(result);
+        } catch (Exception e) {
+            log.error("查询表索引失败: database={}, table={}", database, tableName, e);
+            return "⚠️ 工具执行失败: 无法获取表 '" + database + "." + tableName + "' 的索引信息。错误: " + e.getMessage();
+        }
     }
 
     // === 多 Agent 协作方法 ===

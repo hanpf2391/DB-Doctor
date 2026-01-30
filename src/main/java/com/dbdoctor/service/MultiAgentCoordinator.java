@@ -259,20 +259,20 @@ public class MultiAgentCoordinator {
 
         // === 主治医生诊断 ===
         report.append("## 🔍 主治医生诊断\n\n");
-        report.append(diagnosisReport).append("\n\n");
+        report.append(cleanAiOutput(diagnosisReport)).append("\n\n");
 
         // === 推理专家分析（如果存在）===
         if (reasoningReport != null) {
             report.append("---\n\n");
             report.append("## 🧠 推理专家深度分析\n\n");
-            report.append(reasoningReport).append("\n\n");
+            report.append(cleanAiOutput(reasoningReport)).append("\n\n");
         }
 
         // === 优化方案（如果存在）===
         if (optimizationCode != null) {
             report.append("---\n\n");
             report.append("## 💻 优化方案\n\n");
-            report.append(optimizationCode).append("\n\n");
+            report.append(cleanAiOutput(optimizationCode)).append("\n\n");
         }
 
         // === 报告尾部 ===
@@ -319,6 +319,38 @@ public class MultiAgentCoordinator {
     }
 
     // === 辅助方法 ===
+
+    /**
+     * 清理 AI 输出，去除工具调用痕迹和格式残留
+     *
+     * @param aiOutput AI 原始输出
+     * @return 清理后的文本
+     */
+    private String cleanAiOutput(String aiOutput) {
+        if (aiOutput == null || aiOutput.isEmpty()) {
+            return aiOutput;
+        }
+
+        String cleaned = aiOutput;
+
+        // 1. 移除 ```json ... ``` 代码块（工具调用的中间痕迹）
+        cleaned = cleaned.replaceAll("```json\\s*\\[.*?\\]\\s*```", "");
+        cleaned = cleaned.replaceAll("```json\\s*\\{.*?\\}\\s*```", "");
+
+        // 2. 移除孤立的 JSON 数组或对象（可能是工具调用残留）
+        // 匹配方括号包裹的 JSON 数组
+        cleaned = cleaned.replaceAll("\\[\\{[^]]*\\}\\]", "");
+        // 匹配单独一行的 JSON 对象
+        cleaned = cleaned.replaceAll("^\\{.*\\}$", "");
+
+        // 3. 移除连续的空行（超过2个连续换行符替换为2个）
+        cleaned = cleaned.replaceAll("\\n{3,}", "\n\n");
+
+        // 4. 移除行首行尾的空白
+        cleaned = cleaned.trim();
+
+        return cleaned;
+    }
 
     /**
      * 将对象转换为 JSON 字符串
