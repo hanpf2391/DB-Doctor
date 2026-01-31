@@ -4,10 +4,12 @@ import com.dbdoctor.agent.CodingAgent;
 import com.dbdoctor.agent.DBAgent;
 import com.dbdoctor.agent.DiagnosticTools;
 import com.dbdoctor.agent.ReasoningAgent;
+import com.dbdoctor.common.enums.AgentName;
 import com.dbdoctor.common.util.PromptUtil;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.AnalysisContext;
 import com.dbdoctor.model.ToolResult;
+import com.dbdoctor.monitoring.AiMonitoringContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -125,10 +127,17 @@ public class MultiAgentCoordinator {
         log.info("📝 [提示词] 格式化完成,长度={}", formattedPrompt.length());
 
         try {
+            // ← 新增：设置监控元数据
+            AiMonitoringContext.setAgentName(AgentName.DIAGNOSIS.getCode());
+            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+
             return diagnosisAgent.analyzeSlowLog(formattedPrompt);
         } catch (Exception e) {
             log.error("主治医生诊断失败", e);
             throw new RuntimeException("主治医生诊断失败: " + e.getMessage(), e);
+        } finally {
+            // ← 新增：清理监控元数据
+            AiMonitoringContext.clear();
         }
     }
 
@@ -242,6 +251,10 @@ public class MultiAgentCoordinator {
                 return null;
             }
 
+            // ← 新增：设置监控元数据
+            AiMonitoringContext.setAgentName(AgentName.REASONING.getCode());
+            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+
             return reasoningAgent.performDeepReasoning(
                 diagnosisReport,
                 statisticsJson,
@@ -250,6 +263,9 @@ public class MultiAgentCoordinator {
         } catch (Exception e) {
             log.error("推理专家分析失败", e);
             return null; // ← 返回null而不是错误信息
+        } finally {
+            // ← 新增：清理监控元数据
+            AiMonitoringContext.clear();
         }
     }
 
@@ -322,6 +338,10 @@ public class MultiAgentCoordinator {
                 return null;
             }
 
+            // ← 新增：设置监控元数据
+            AiMonitoringContext.setAgentName(AgentName.CODING.getCode());
+            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+
             return codingAgent.generateOptimizationCode(
                 context.getSampleSql(),
                 problemDesc,
@@ -330,6 +350,9 @@ public class MultiAgentCoordinator {
         } catch (Exception e) {
             log.error("编码专家生成优化方案失败", e);
             return null; // ← 返回null而不是错误信息
+        } finally {
+            // ← 新增：清理监控元数据
+            AiMonitoringContext.clear();
         }
     }
 

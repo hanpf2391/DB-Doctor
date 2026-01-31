@@ -5,6 +5,7 @@ import com.dbdoctor.agent.DiagnosticToolsImpl;
 import com.dbdoctor.agent.DBAgent;
 import com.dbdoctor.agent.ReasoningAgent;
 import com.dbdoctor.agent.CodingAgent;
+import com.dbdoctor.monitoring.AiMonitoringListener;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
@@ -17,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Duration;
+import java.util.List;
 
 /**
  * AI 配置类 - 动态模型工厂
@@ -36,6 +38,12 @@ public class AiConfig {
     @Autowired
     @Qualifier("targetJdbcTemplate")
     private JdbcTemplate targetJdbcTemplate;
+
+    /**
+     * AI 监控监听器（可选，如果监控功能未启用则为 null）
+     */
+    @Autowired(required = false)
+    private AiMonitoringListener aiMonitoringListener;
 
     /**
      * 配置主治医生的 ChatLanguageModel
@@ -206,14 +214,22 @@ public class AiConfig {
         // 分支 A：本地 Ollama 模型
         if ("ollama".equalsIgnoreCase(provider)) {
             log.info("使用 OllamaChatModel（原生客户端，完美支持工具调用）");
-            return dev.langchain4j.model.ollama.OllamaChatModel.builder()
+            dev.langchain4j.model.ollama.OllamaChatModel.OllamaChatModelBuilder builder =
+                    dev.langchain4j.model.ollama.OllamaChatModel.builder()
                     .baseUrl(baseUrl)
                     .modelName(modelName)
                     .temperature(temperature)
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .logRequests(true)   // 启用请求日志
-                    .logResponses(true)  // 启用响应日志
-                    .build();
+                    .logResponses(true); // 启用响应日志
+
+            // 注入监控监听器（如果存在）
+            if (aiMonitoringListener != null) {
+                builder.listeners(List.of(aiMonitoringListener));
+                log.debug("✅ AI 监控监听器已注入到 OllamaChatModel");
+            }
+
+            return builder.build();
         }
 
         // 分支 B：OpenAI 兼容协议（DeepSeek、硅基流动、OpenAI 等）
@@ -222,15 +238,23 @@ public class AiConfig {
                 || "aliyun".equalsIgnoreCase(provider)
                 || "siliconflow".equalsIgnoreCase(provider)) {
             log.info("使用 OpenAiChatModel（OpenAI 兼容协议）");
-            return OpenAiChatModel.builder()
+            OpenAiChatModel.OpenAiChatModelBuilder builder =
+                    OpenAiChatModel.builder()
                     .baseUrl(baseUrl)
                     .apiKey(apiKey)
                     .modelName(modelName)
                     .temperature(temperature)
                     .timeout(Duration.ofSeconds(timeoutSeconds))
                     .logRequests(true)
-                    .logResponses(true)
-                    .build();
+                    .logResponses(true);
+
+            // 注入监控监听器（如果存在）
+            if (aiMonitoringListener != null) {
+                builder.listeners(List.of(aiMonitoringListener));
+                log.debug("✅ AI 监控监听器已注入到 OpenAiChatModel");
+            }
+
+            return builder.build();
         }
 
         throw new IllegalArgumentException("❌ 不支持的 AI 供应商: " + provider + "。支持的选项: ollama, openai, deepseek, aliyun, siliconflow");
