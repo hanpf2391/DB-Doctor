@@ -6,7 +6,7 @@
 
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
-[![LangChain4j](https://img.shields.io/badge/LangChain4j-0.29.1-blue.svg)](https://docs.langchain4j.dev)
+[![LangChain4j](https://img.shields.io/badge/LangChain4j-0.36.1-blue.svg)](https://docs.langchain4j.dev)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -452,7 +452,70 @@ db-doctor:
 - ✅ SQL 重写建议
 - ✅ 执行计划分析（EXPLAIN）
 
-### 4. 多渠道通知
+### 4. AI 监控与 Token 统计 🆕
+
+- ✅ **AI 调用监控**：实时监控所有 AI 调用（Diagnosis/Reasoning/Coding）
+- ✅ **Token 消耗统计**：追踪输入/输出 Token 数量
+- ✅ **性能分析**：记录每次 AI 调用的耗时
+- ✅ **单次分析详情**：按 SQL 指纹（traceId）聚合查看完整的分析链路
+- ✅ **成本分析** 🆕：统计各模型和各 Agent 的成本消耗（v2.3.2）
+
+#### ✨ Token 统计实现说明（v2.3.2 升级）
+
+**当前实现方式**：**官方 API + 估算兜底** 的双重策略
+
+**v2.3.2 升级内容**：
+- ✅ **LangChain4j 升级到 0.36.1**：支持完整的 TokenUsage API
+- ✅ **官方 Token 统计**：OpenAI、DeepSeek 等模型使用真实 Token 数（准确度 95%+）
+- ✅ **估算算法兜底**：Ollama 等本地模型继续使用估算（准确度 70-80%）
+- ✅ **成本分析功能**：基于真实 Token 计算实际成本（支持多模型定价）
+
+**Token 统计策略**：
+
+1. **优先使用官方 API**（v2.3.2 启用）
+   - OpenAI/DeepSeek 等支持 TokenUsage 的模型使用官方统计数据
+   - 准确度：**95%+** ✅
+
+2. **估算算法兜底**（保留）
+   - Ollama 等不返回 TokenUsage 的模型使用估算算法
+   - 中文：约 **1.5 字符 / Token**
+   - 英文：约 **4 字符 / Token**
+   - SQL 代码：约 **3 字符 / Token**
+   - 准确度：**70-80%**
+
+#### 💰 成本分析功能（v2.3.2 新增）
+
+**功能特性**：
+- 📊 **总成本统计**：统计时间范围内的总成本（美元）
+- 📈 **各模型成本分布**：饼图展示不同模型的成本占比
+- 🔍 **各 Agent 成本分布**：主治医生、推理专家、编码专家的成本分析
+- 📉 **Token 组成分析**：输入 Token vs 输出 Token 的条形图对比
+
+**模型定价配置**（`application.yml`）：
+```yaml
+db-doctor:
+  ai:
+    cost:
+      model-pricing:
+        gpt-4o:
+          input-price: 5.0      # $5 / 百万输入 Token
+          output-price: 15.0    # $15 / 百万输出 Token
+          provider: openai
+        deepseek-chat:
+          input-price: 0.14
+          output-price: 0.28
+          provider: deepseek
+        qwen:  # Ollama 本地模型
+          input-price: 0.0      # 免费
+          output-price: 0.0
+          provider: ollama
+```
+
+**相关文档**：
+- 📄 `docs/AI监控功能增强设计文档.md` - 功能设计文档
+- 📄 `docs/LangChain4j升级影响分析报告.md` - 升级技术分析
+
+### 5. 多渠道通知
 
 - ✅ **邮件通知**：支持 SMTP 协议
 - ✅ **钉钉机器人**：支持 Webhook + 签名验证

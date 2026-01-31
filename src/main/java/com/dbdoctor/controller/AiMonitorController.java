@@ -6,7 +6,9 @@ import com.dbdoctor.common.enums.InvocationStatus;
 import com.dbdoctor.entity.AiInvocationLog;
 import com.dbdoctor.model.AiInvocationDetail;
 import com.dbdoctor.model.AiMonitorStats;
+import com.dbdoctor.model.CostStats;
 import com.dbdoctor.service.AiInvocationLogService;
+import com.dbdoctor.service.AiCostService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -29,9 +31,11 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/ai-monitor")
 @RequiredArgsConstructor
+@SuppressWarnings("unchecked")
 public class AiMonitorController {
 
     private final AiInvocationLogService logService;
+    private final AiCostService costService;
 
     /**
      * 获取监控统计数据
@@ -286,5 +290,124 @@ public class AiMonitorController {
             case "UNKNOWN" -> "未知错误";
             default -> code;
         };
+    }
+
+    // ===== 🆕 单次分析详情相关接口（v2.3.1） =====
+
+    /**
+     * 获取单次分析详情（按 traceId 聚合）- 🆕
+     *
+     * <p>返回指定 SQL 指纹的完整分析链路</p>
+     *
+     * @param traceId SQL 指纹
+     * @return 分析详情
+     */
+    @GetMapping("/analysis-trace/{traceId}")
+    public Result<com.dbdoctor.model.AnalysisTraceDetail> getAnalysisTraceDetail(
+            @PathVariable String traceId) {
+
+        log.info("[AI监控] 查询单次分析详情: traceId={}", traceId);
+
+        try {
+            com.dbdoctor.model.AnalysisTraceDetail detail = logService.getAnalysisTraceDetail(traceId);
+
+            if (detail == null) {
+                return Result.error(404, "未找到该 SQL 的分析记录");
+            }
+
+            log.info("[AI监控] 查询成功: traceId={}, calls={}, tokens={}, duration={}ms",
+                    traceId, detail.getTotalCalls(), detail.getTotalTokens(), detail.getTotalDurationMs());
+
+            return Result.success(detail);
+        } catch (Exception e) {
+            log.error("[AI监控] 查询失败: traceId={}", traceId, e);
+            return Result.error("查询失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取分析记录列表（分页）- 🆕
+     *
+     * @param startTime 开始时间（可选，默认最近24小时）
+     * @param endTime   结束时间（可选，默认当前时间）
+     * @param page      页码（从 0 开始，默认 0）
+     * @param size      每页大小（默认 20）
+     * @return 分页结果
+     */
+    @GetMapping("/analysis-traces")
+    public Result<org.springframework.data.domain.Page<com.dbdoctor.model.AnalysisTraceSummary>> listAnalysisTraces(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        log.info("[AI监控] 查询分析记录列表: startTime={}, endTime={}, page={}, size={}",
+                startTime, endTime, page, size);
+
+        // 默认最近 24 小时
+        if (startTime == null) {
+            startTime = LocalDateTime.now().minusHours(24);
+        }
+        if (endTime == null) {
+            endTime = LocalDateTime.now();
+        }
+
+        try {
+            org.springframework.data.domain.Page<com.dbdoctor.model.AnalysisTraceSummary> result =
+                    logService.listAnalysisTraces(startTime, endTime, page, size);
+
+            log.info("[AI监控] 查询成功: total={}, page={}", result.getTotalElements(), page);
+
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("[AI监控] 查询失败", e);
+            return Result.error("查询失败: " + e.getMessage());
+        }
+    }
+
+    // ===== 🆕 成本分析相关接口（v2.3.2） =====
+
+    /**
+     * 获取成本统计 - 🆕
+     *
+     * @param startTime 开始时间（可选，默认最近24小时）
+     * @param endTime   结束时间（可选，默认当前时间）
+     * @return 成本统计
+     */
+    @GetMapping("/cost-stats")
+    public Result<CostStats> getCostStats(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
+
+        log.info("[AI监控] 查询成本统计: startTime={}, endTime={}", startTime, endTime);
+
+        // 默认最近 24 小时
+        if (startTime == null) {
+            startTime = LocalDateTime.now().minusHours(24);
+        }
+        if (endTime == null) {
+            endTime = LocalDateTime.now();
+        }
+
+        try {
+            CostStats stats = costService.getCostStats(startTime, endTime);
+
+            log.info("[AI监控] 查询成功: totalCost=${}, totalTokens={}, totalCalls={}",
+                    String.format("%.4f", stats.getTotalCost()),
+                    stats.getTotalTokens(),
+                    stats.getTotalCalls());
+
+            return Result.success(stats);
+        } catch (Exception e) {
+            log.error("[AI监控] 查询失败", e);
+            return Result.error("查询失败: " + e.getMessage());
+        }
     }
 }

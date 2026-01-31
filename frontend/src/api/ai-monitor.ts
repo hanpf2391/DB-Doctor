@@ -1,5 +1,5 @@
-import request from '../index'
-import type { AiMonitorStats, AiInvocationDetail, QueryParams } from '@/views/AiMonitor/types'
+import request from './index'
+import type { AiMonitorStats, AiInvocationDetail, QueryParams, AnalysisTraceSummary, AnalysisTraceDetail, CostStats } from '@/views/AiMonitor/types'
 
 /**
  * AI 监控 API
@@ -16,7 +16,7 @@ import type { AiMonitorStats, AiInvocationDetail, QueryParams } from '@/views/Ai
  */
 export function getAiMonitorStats(params?: QueryParams): Promise<AiMonitorStats> {
   return request({
-    url: '/api/ai-monitor/stats',
+    url: '/ai-monitor/stats',
     method: 'get',
     params
   })
@@ -30,7 +30,7 @@ export function getAiMonitorStats(params?: QueryParams): Promise<AiMonitorStats>
  */
 export function getAiInvocationByTrace(traceId: string): Promise<AiInvocationDetail[]> {
   return request({
-    url: `/api/ai-monitor/by-trace/${traceId}`,
+    url: `/ai-monitor/by-trace/${traceId}`,
     method: 'get'
   })
 }
@@ -43,7 +43,7 @@ export function getAiInvocationByTrace(traceId: string): Promise<AiInvocationDet
  */
 export function queryAiInvocations(params: QueryParams): Promise<AiInvocationDetail[]> {
   return request({
-    url: '/api/ai-monitor/query',
+    url: '/ai-monitor/query',
     method: 'get',
     params
   })
@@ -57,7 +57,7 @@ export function queryAiInvocations(params: QueryParams): Promise<AiInvocationDet
  */
 export function getAiErrorStats(params?: QueryParams): Promise<Record<string, number>> {
   return request({
-    url: '/api/ai-monitor/error-stats',
+    url: '/ai-monitor/error-stats',
     method: 'get',
     params
   })
@@ -70,7 +70,64 @@ export function getAiErrorStats(params?: QueryParams): Promise<Record<string, nu
  */
 export function getDefaultTimeRange(): Promise<{ startTime: string; endTime: string }> {
   return request({
-    url: '/api/ai-monitor/default-time-range',
+    url: '/ai-monitor/default-time-range',
     method: 'get'
+  })
+}
+
+// ===== 🆕 单次分析详情相关 API（v2.3.1） =====
+
+/**
+ * 获取分析记录列表（分页）- 🆕
+ *
+ * @param params 查询参数
+ * @returns 分页结果
+ */
+export function getAnalysisTraces(params: {
+  startTime?: string
+  endTime?: string
+  page?: number
+  size?: number
+}): Promise<{
+  content: AnalysisTraceSummary[]
+  totalElements: number
+  totalPages: number
+}> {
+  return request({
+    url: '/ai-monitor/analysis-traces',
+    method: 'get',
+    params
+  })
+}
+
+/**
+ * 获取单次分析详情 - 🆕
+ *
+ * @param traceId SQL 指纹
+ * @returns 分析详情
+ */
+export function getAnalysisTraceDetail(traceId: string): Promise<AnalysisTraceDetail> {
+  return request({
+    url: `/ai-monitor/analysis-trace/${traceId}`,
+    method: 'get'
+  })
+}
+
+// ===== 🆕 成本分析相关 API（v2.3.2） =====
+
+/**
+ * 获取成本统计 - 🆕
+ *
+ * @param params 查询参数
+ * @returns 成本统计
+ */
+export function getCostStats(params?: {
+  startTime?: string
+  endTime?: string
+}): Promise<CostStats> {
+  return request({
+    url: '/ai-monitor/cost-stats',
+    method: 'get',
+    params
   })
 }

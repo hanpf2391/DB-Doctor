@@ -4,7 +4,7 @@
     <el-aside width="200px">
       <div class="logo">
         <h2>DB-Doctor</h2>
-        <p>v2.2.0</p>
+        <p>v2.3.0</p>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -14,6 +14,10 @@
         <el-menu-item index="/">
           <el-icon><Odometer /></el-icon>
           <span>仪表盘</span>
+        </el-menu-item>
+        <el-menu-item index="/ai-monitor">
+          <el-icon><Monitor /></el-icon>
+          <span>AI 监控</span>
         </el-menu-item>
         <el-menu-item index="/reports">
           <el-icon><DataAnalysis /></el-icon>

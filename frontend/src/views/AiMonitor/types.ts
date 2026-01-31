@@ -131,3 +131,77 @@ export const ERROR_CATEGORY_NAME_MAP: Record<string, string> = {
   TOKEN_LIMIT: '令牌超限',
   UNKNOWN: '未知错误'
 }
+
+// ===== 🆕 单次分析详情相关类型（v2.3.1） =====
+
+/**
+ * 单次分析详情
+ */
+export interface AnalysisTraceDetail {
+  /** SQL 指纹 */
+  traceId: string
+  /** SQL 示例（用于展示） */
+  sampleSql?: string
+  /** 数据库名称 */
+  dbName?: string
+  /** 分析开始时间 */
+  startTime: string
+  /** 分析结束时间 */
+  endTime: string
+  /** 总耗时（毫秒） */
+  totalDurationMs: number
+  /** 总 Token 消耗 */
+  totalTokens: number
+  /** 总调用次数 */
+  totalCalls: number
+  /** 成功率（0-100） */
+  successRate: number
+  /** AI 调用详情列表（按时间顺序） */
+  invocations: AiInvocationDetail[]
+  /** 状态：SUCCESS（全部成功）/ PARTIAL_FAILURE（部分失败）/ FAILED（全部失败） */
+  status: 'SUCCESS' | 'PARTIAL_FAILURE' | 'FAILED'
+}
+
+/**
+ * 单次分析摘要
+ */
+export interface AnalysisTraceSummary {
+  /** SQL 指纹 */
+  traceId: string
+  /** 分析开始时间 */
+  startTime: string
+  /** 总调用次数 */
+  totalCalls: number
+  /** 总耗时（毫秒） */
+  totalDurationMs: number
+  /** 总 Token 消耗 */
+  totalTokens: number
+  /** 状态 */
+  status: 'SUCCESS' | 'PARTIAL_FAILURE' | 'FAILED'
+}
+
+// ===== 🆕 成本分析相关类型（v2.3.2） =====
+
+/**
+ * 成本统计数据
+ */
+export interface CostStats {
+  /** 总成本（美元） */
+  totalCost: number
+  /** 各模型成本分布 */
+  costByModel: Record<string, number>
+  /** 各 Agent 成本分布 */
+  costByAgent: Record<string, number>
+  /** 输入 Token 总数 */
+  totalInputTokens: number
+  /** 输出 Token 总数 */
+  totalOutputTokens: number
+  /** 总 Token 数 */
+  totalTokens: number
+  /** 调用总次数 */
+  totalCalls: number
+  /** 平均每次调用成本 */
+  avgCostPerCall: number
+  /** 统计时间范围 */
+  timeRange: string
+}

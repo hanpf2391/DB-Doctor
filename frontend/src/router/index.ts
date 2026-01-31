@@ -56,6 +56,16 @@ const router = createRouter({
       path: '/ai-monitor/invocation-log',
       name: 'AiMonitorInvocationLog',
       component: () => import('@/views/AiMonitor/InvocationLog.vue')
+    },
+    {
+      path: '/ai-monitor/analysis-traces',
+      name: 'AnalysisTraces',
+      component: () => import('@/views/AiMonitor/AnalysisTraceList.vue')
+    },
+    {
+      path: '/ai-monitor/cost-analysis',
+      name: 'CostAnalysis',
+      component: () => import('@/views/AiMonitor/CostAnalysis.vue')
     }
   ]
 })

@@ -25,7 +25,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- LangChain4j 版本 -->
-        <langchain4j.version>0.35.0</langchain4j.version>
+        <!-- 升级到 0.36.1 以支持完整的 TokenUsage API -->
+        <langchain4j.version>0.36.1</langchain4j.version>
 
         <!-- Hutool 版本 -->
         <hutool.version>5.8.27</hutool.version>

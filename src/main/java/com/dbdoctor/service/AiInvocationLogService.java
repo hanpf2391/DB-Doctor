@@ -242,4 +242,192 @@ public class AiInvocationLogService {
 
         return costStats;
     }
+
+    // ===== 🆕 单次分析详情相关方法（v2.3.1） =====
+
+    /**
+     * 获取单次分析详情（按 traceId 聚合）- 🆕
+     *
+     * <p>聚合指定 traceId 的所有 AI 调用记录，返回完整的分析链路</p>
+     *
+     * @param traceId SQL 指纹
+     * @return 分析详情
+     */
+    public com.dbdoctor.model.AnalysisTraceDetail getAnalysisTraceDetail(String traceId) {
+        List<AiInvocationLog> logs = repository.findByTraceIdOrderByStartTimeAsc(traceId);
+
+        if (logs.isEmpty()) {
+            return null;
+        }
+
+        com.dbdoctor.model.AnalysisTraceDetail detail = new com.dbdoctor.model.AnalysisTraceDetail();
+        detail.setTraceId(traceId);
+
+        // 基本信息
+        detail.setStartTime(logs.get(0).getStartTime());
+        detail.setEndTime(logs.get(logs.size() - 1).getEndTime());
+        detail.setTotalCalls(logs.size());
+
+        // 统计信息
+        long totalDuration = 0;
+        int totalTokens = 0;
+        int successCount = 0;
+
+        for (AiInvocationLog log : logs) {
+            totalDuration += log.getDurationMs();
+            totalTokens += log.getTotalTokens();
+            if ("SUCCESS".equals(log.getStatus())) {
+                successCount++;
+            }
+        }
+
+        detail.setTotalDurationMs(totalDuration);
+        detail.setTotalTokens(totalTokens);
+        detail.setSuccessRate(successCount * 100.0 / logs.size());
+
+        // 状态
+        if (successCount == logs.size()) {
+            detail.setStatus("SUCCESS");
+        } else if (successCount == 0) {
+            detail.setStatus("FAILED");
+        } else {
+            detail.setStatus("PARTIAL_FAILURE");
+        }
+
+        // 转换调用详情列表
+        List<com.dbdoctor.model.AiInvocationDetail> details = logs.stream()
+                .map(this::toDetail)
+                .toList();
+        detail.setInvocations(details);
+
+        return detail;
+    }
+
+    /**
+     * 获取所有分析记录的分页列表 - 🆕
+     *
+     * @param startTime 开始时间
+     * @param endTime   结束时间
+     * @param page      页码（从 0 开始）
+     * @param size      每页大小
+     * @return 分页结果
+     */
+    public org.springframework.data.domain.Page<com.dbdoctor.model.AnalysisTraceSummary> listAnalysisTraces(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            int page,
+            int size) {
+
+        // 查询所有不重复的 traceId
+        List<String> traceIds = repository.findDistinctTraceIdsByStartTimeBetween(startTime, endTime);
+
+        // 分页
+        int start = page * size;
+        int end = Math.min(start + size, traceIds.size());
+
+        if (start >= traceIds.size()) {
+            // 页码超出范围，返回空结果
+            return org.springframework.data.domain.Page.empty();
+        }
+
+        List<String> pageTraceIds = traceIds.subList(start, end);
+
+        // 构建摘要列表
+        List<com.dbdoctor.model.AnalysisTraceSummary> summaries = new java.util.ArrayList<>();
+        for (String traceId : pageTraceIds) {
+            com.dbdoctor.model.AnalysisTraceDetail detail = getAnalysisTraceDetail(traceId);
+            com.dbdoctor.model.AnalysisTraceSummary summary = new com.dbdoctor.model.AnalysisTraceSummary();
+            summary.setTraceId(traceId);
+            summary.setStartTime(detail.getStartTime());
+            summary.setTotalCalls(detail.getTotalCalls());
+            summary.setTotalDurationMs(detail.getTotalDurationMs());
+            summary.setTotalTokens(detail.getTotalTokens());
+            summary.setStatus(detail.getStatus());
+            summaries.add(summary);
+        }
+
+        return new org.springframework.data.domain.PageImpl<>(
+                summaries,
+                org.springframework.data.domain.PageRequest.of(page, size),
+                traceIds.size()
+        );
+    }
+
+    /**
+     * 将 AiInvocationLog 转换为 AiInvocationDetail - 🆕
+     *
+     * @param log 日志实体
+     * @return 详情 DTO
+     */
+    private com.dbdoctor.model.AiInvocationDetail toDetail(AiInvocationLog log) {
+        com.dbdoctor.model.AiInvocationDetail detail = new com.dbdoctor.model.AiInvocationDetail();
+
+        detail.setId(log.getId());
+        detail.setTraceId(log.getTraceId());
+        detail.setAgentCode(log.getAgentName());
+        detail.setAgentDisplayName(getAgentDisplayName(log.getAgentName()));
+        detail.setModelName(log.getModelName());
+        detail.setProvider(log.getProvider());
+        detail.setStartTime(log.getStartTime());
+        detail.setEndTime(log.getEndTime());
+        detail.setDurationMs(log.getDurationMs());
+        detail.setStatusCode(log.getStatus());
+        detail.setStatusDisplayName(getStatusDisplayName(log.getStatus()));
+        detail.setInputTokens(log.getInputTokens());
+        detail.setOutputTokens(log.getOutputTokens());
+        detail.setTotalTokens(log.getTotalTokens());
+        detail.setErrorCategory(log.getErrorCategory());
+        detail.setErrorCategoryDisplayName(getErrorCategoryDisplayName(log.getErrorCategory()));
+        detail.setErrorMessage(log.getErrorMessage());
+
+        return detail;
+    }
+
+    /**
+     * 获取 Agent 显示名称
+     */
+    private String getAgentDisplayName(String agentCode) {
+        if (agentCode == null) return "未知";
+
+        return switch (agentCode) {
+            case "DIAGNOSIS" -> "主治医生";
+            case "REASONING" -> "推理专家";
+            case "CODING" -> "编码专家";
+            default -> agentCode;
+        };
+    }
+
+    /**
+     * 获取状态显示名称
+     */
+    private String getStatusDisplayName(String statusCode) {
+        if (statusCode == null) return "未知";
+
+        return switch (statusCode) {
+            case "SUCCESS" -> "成功";
+            case "FAILED" -> "失败";
+            case "TIMEOUT" -> "超时";
+            default -> statusCode;
+        };
+    }
+
+    /**
+     * 获取错误分类显示名称
+     */
+    private String getErrorCategoryDisplayName(String errorCode) {
+        if (errorCode == null) return null;
+
+        return switch (errorCode) {
+            case "TIMEOUT" -> "超时";
+            case "API_ERROR" -> "API 错误";
+            case "RATE_LIMIT" -> "频率限制";
+            case "NETWORK_ERROR" -> "网络错误";
+            case "INVALID_RESPONSE" -> "响应无效";
+            case "CONTEXT_TOO_LONG" -> "上下文过长";
+            case "INSUFFICIENT_QUOTA" -> "配额不足";
+            case "MODEL_UNAVAILABLE" -> "模型不可用";
+            case "UNKNOWN_ERROR" -> "未知错误";
+            default -> errorCode;
+        };
+    }
 }

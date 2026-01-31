@@ -9,7 +9,7 @@ import com.dbdoctor.common.util.PromptUtil;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.AnalysisContext;
 import com.dbdoctor.model.ToolResult;
-import com.dbdoctor.monitoring.AiMonitoringContext;
+import com.dbdoctor.monitoring.AiContextHolder;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -127,17 +127,25 @@ public class MultiAgentCoordinator {
         log.info("📝 [提示词] 格式化完成,长度={}", formattedPrompt.length());
 
         try {
-            // ← 新增：设置监控元数据
-            AiMonitoringContext.setAgentName(AgentName.DIAGNOSIS.getCode());
-            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+            // 设置监控元数据（使用 ThreadLocal 传递）
+            AiContextHolder.setAgentName(AgentName.DIAGNOSIS.getCode());
+            AiContextHolder.setTraceId(context.getSqlFingerprint());
 
-            return diagnosisAgent.analyzeSlowLog(formattedPrompt);
+            // 🆕 设置 Prompt（用于 Token 估算）
+            AiContextHolder.setPrompt(formattedPrompt);
+
+            String result = diagnosisAgent.analyzeSlowLog(formattedPrompt);
+
+            // 🆕 设置 Response（用于 Token 统计）
+            AiContextHolder.setResponse(result);
+
+            return result;
         } catch (Exception e) {
             log.error("主治医生诊断失败", e);
             throw new RuntimeException("主治医生诊断失败: " + e.getMessage(), e);
         } finally {
-            // ← 新增：清理监控元数据
-            AiMonitoringContext.clear();
+            // 清理监控元数据（防止 ThreadLocal 内存泄漏）
+            AiContextHolder.clear();
         }
     }
 
@@ -251,21 +259,33 @@ public class MultiAgentCoordinator {
                 return null;
             }
 
-            // ← 新增：设置监控元数据
-            AiMonitoringContext.setAgentName(AgentName.REASONING.getCode());
-            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+            // 设置监控元数据（使用 ThreadLocal 传递）
+            AiContextHolder.setAgentName(AgentName.REASONING.getCode());
+            AiContextHolder.setTraceId(context.getSqlFingerprint());
 
-            return reasoningAgent.performDeepReasoning(
+            // 🆕 构造 Prompt（用于 Token 估算）
+            String prompt = String.format(
+                "诊断报告：%s\n\n统计信息：%s\n\n执行计划：%s",
+                diagnosisReport, statisticsJson, executionPlanJson
+            );
+            AiContextHolder.setPrompt(prompt);
+
+            String result = reasoningAgent.performDeepReasoning(
                 diagnosisReport,
                 statisticsJson,
                 executionPlanJson
             );
+
+            // 🆕 设置 Response（用于 Token 统计）
+            AiContextHolder.setResponse(result);
+
+            return result;
         } catch (Exception e) {
             log.error("推理专家分析失败", e);
             return null; // ← 返回null而不是错误信息
         } finally {
-            // ← 新增：清理监控元数据
-            AiMonitoringContext.clear();
+            // 清理监控元数据（防止 ThreadLocal 内存泄漏）
+            AiContextHolder.clear();
         }
     }
 
@@ -338,21 +358,33 @@ public class MultiAgentCoordinator {
                 return null;
             }
 
-            // ← 新增：设置监控元数据
-            AiMonitoringContext.setAgentName(AgentName.CODING.getCode());
-            AiMonitoringContext.setTraceId(context.getSqlFingerprint());
+            // 设置监控元数据（使用 ThreadLocal 传递）
+            AiContextHolder.setAgentName(AgentName.CODING.getCode());
+            AiContextHolder.setTraceId(context.getSqlFingerprint());
 
-            return codingAgent.generateOptimizationCode(
+            // 🆕 构造 Prompt（用于 Token 估算）
+            String prompt = String.format(
+                "原始 SQL：%s\n\n问题描述：%s\n\n执行计划：%s",
+                context.getSampleSql(), problemDesc, executionPlanJson
+            );
+            AiContextHolder.setPrompt(prompt);
+
+            String result = codingAgent.generateOptimizationCode(
                 context.getSampleSql(),
                 problemDesc,
                 executionPlanJson
             );
+
+            // 🆕 设置 Response（用于 Token 统计）
+            AiContextHolder.setResponse(result);
+
+            return result;
         } catch (Exception e) {
             log.error("编码专家生成优化方案失败", e);
             return null; // ← 返回null而不是错误信息
         } finally {
-            // ← 新增：清理监控元数据
-            AiMonitoringContext.clear();
+            // 清理监控元数据（防止 ThreadLocal 内存泄漏）
+            AiContextHolder.clear();
         }
     }
 

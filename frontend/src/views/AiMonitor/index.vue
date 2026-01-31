@@ -19,11 +19,10 @@
       </el-col>
       <el-col :span="6">
         <el-card class="stat-card primary" shadow="hover">
-          <el-statistic title="总 Token 消耗" :value="formatTokens(stats.totalTokens)">
-            <template #suffix>
-              <span class="unit">Tokens</span>
-            </template>
-          </el-statistic>
+          <div class="statistic-content">
+            <div class="statistic-title">总 Token 消耗</div>
+            <div class="statistic-value primary">{{ formatTokens(stats.totalTokens) }}</div>
+          </div>
         </el-card>
       </el-col>
       <el-col :span="6">
@@ -113,9 +112,13 @@
         <span class="card-title">快捷操作</span>
       </template>
       <el-space :size="20">
-        <el-button type="primary" @click="goToInvocationLog">
+        <el-button type="primary" @click="goToAnalysisTraces">
           <el-icon><View /></el-icon>
-          查看调用流水
+          查看分析详情
+        </el-button>
+        <el-button type="warning" @click="goToCostAnalysis">
+          <el-icon><Wallet /></el-icon>
+          成本分析
         </el-button>
         <el-button type="success" @click="refreshData">
           <el-icon><Refresh /></el-icon>
@@ -134,7 +137,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, View, Refresh, Download } from '@element-plus/icons-vue'
+import { DataAnalysis, View, Refresh, Download, Wallet } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -343,6 +346,20 @@ function goToInvocationLog() {
 }
 
 /**
+ * 跳转到分析详情页面 - 🆕
+ */
+function goToAnalysisTraces() {
+  router.push('/ai-monitor/analysis-traces')
+}
+
+/**
+ * 跳转到成本分析页面 - 🆕
+ */
+function goToCostAnalysis() {
+  router.push('/ai-monitor/cost-analysis')
+}
+
+/**
  * 导出数据
  */
 function exportData() {
@@ -350,16 +367,16 @@ function exportData() {
 }
 
 /**
- * 格式化 Token 数
+ * 格式化 Token 数（带单位）
  */
 function formatTokens(tokens: number): string {
   if (tokens >= 1000000) {
-    return (tokens / 1000000).toFixed(1)
+    return (tokens / 1000000).toFixed(1) + 'M Tokens'
   }
   if (tokens >= 1000) {
-    return (tokens / 1000).toFixed(1)
+    return (tokens / 1000).toFixed(1) + 'K Tokens'
   }
-  return tokens.toString()
+  return tokens + ' Tokens'
 }
 
 /**
@@ -425,6 +442,40 @@ onMounted(() => {
 }
 
 .stat-card.danger :deep(.el-statistic__content) {
+  color: #f56c6c;
+}
+
+/* 自定义统计卡片样式 */
+.statistic-content {
+  text-align: center;
+  padding: 10px 0;
+}
+
+.statistic-title {
+  font-size: 14px;
+  color: #909399;
+  margin-bottom: 8px;
+}
+
+.statistic-value {
+  font-size: 28px;
+  font-weight: bold;
+  color: #303133;
+}
+
+.statistic-value.primary {
+  color: #409eff;
+}
+
+.statistic-value.success {
+  color: #67c23a;
+}
+
+.statistic-value.warning {
+  color: #e6a23c;
+}
+
+.statistic-value.danger {
   color: #f56c6c;
 }
 

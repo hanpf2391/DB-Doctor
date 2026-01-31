@@ -22,6 +22,18 @@ import java.util.List;
 public interface AiInvocationLogRepository extends JpaRepository<AiInvocationLog, Long> {
 
     /**
+     * 查询指定时间范围内的所有调用
+     *
+     * @param startTime 开始时间
+     * @param endTime   结束时间
+     * @return AI 调用列表
+     */
+    List<AiInvocationLog> findByStartTimeBetween(
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    );
+
+    /**
      * 根据 trace_id 查询所有相关的 AI 调用（按开始时间升序）
      *
      * @param traceId SQL 指纹
@@ -241,4 +253,19 @@ public interface AiInvocationLogRepository extends JpaRepository<AiInvocationLog
            "GROUP BY a.errorCategory")
     List<Object[]> countByErrorCategory(@Param("startTime") LocalDateTime startTime,
                                          @Param("endTime") LocalDateTime endTime);
+
+    /**
+     * 查询指定时间内的所有不重复 traceId（按开始时间降序）
+     *
+     * @param startTime 开始时间
+     * @param endTime   结束时间
+     * @return traceId 列表
+     */
+    @Query("SELECT DISTINCT a.traceId FROM AiInvocationLog a " +
+           "WHERE a.startTime BETWEEN :startTime AND :endTime " +
+           "ORDER BY a.startTime DESC")
+    List<String> findDistinctTraceIdsByStartTimeBetween(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime
+    );
 }

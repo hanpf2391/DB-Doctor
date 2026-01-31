@@ -95,6 +95,49 @@ db-doctor:
     # 验证范围：1-50
     max-concurrent-analysis: 4
 
+    # === v2.3.2 成本分析配置 ===
+    cost:
+      # 模型定价配置（美元/百万 Token）
+      # 参考：OpenAI、DeepSeek 等官方定价
+      model-pricing:
+        # OpenAI 定价（2024年）
+        gpt-4o:
+          input-price: 5.0
+          output-price: 15.0
+          provider: openai
+        gpt-4o-mini:
+          input-price: 0.15
+          output-price: 0.60
+          provider: openai
+        gpt-4:
+          input-price: 30.0
+          output-price: 60.0
+          provider: openai
+
+        # DeepSeek 定价
+        deepseek-chat:
+          input-price: 0.14
+          output-price: 0.28
+          provider: deepseek
+        deepseek-r1:
+          input-price: 0.55
+          output-price: 2.19
+          provider: deepseek
+
+        # Ollama 本地模型（免费）
+        qwen:
+          input-price: 0.0
+          output-price: 0.0
+          provider: ollama
+        qwen2.5:
+          input-price: 0.0
+          output-price: 0.0
+          provider: ollama
+        llama:
+          input-price: 0.0
+          output-price: 0.0
+          provider: ollama
+
   # 慢查询监控配置
   slow-log-monitor:
     # ⚠️ 轮询间隔：自适应调整（不可配置），根据慢查询负载自动调整：
@@ -241,7 +284,7 @@ db-doctor:
       # 验证范围：true/false
       enabled: false
 
-      # 各模型的 Token 单价（元/1K tokens）
+      # 各模型的 Token 单价（元/1K tokens）- 旧配置（保留兼容性）
       prices:
         qwen2.5:7b: 0.0      # 本地模型，免费
         qwen2.5:14b: 0.0     # 本地模型，免费

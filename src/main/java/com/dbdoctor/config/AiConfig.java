@@ -224,11 +224,10 @@ public class AiConfig {
                     .logResponses(true); // 启用响应日志
 
             // 注入监控监听器（如果存在）
-            // TODO: 临时禁用，等待 LangChain4j API 兼容性修复
-            // if (aiMonitoringListener != null) {
-            //     builder.listeners(List.of(aiMonitoringListener));
-            //     log.debug("✅ AI 监控监听器已注入到 OllamaChatModel");
-            // }
+            if (aiMonitoringListener != null) {
+                builder.listeners(List.of(aiMonitoringListener));
+                log.debug("✅ AI 监控监听器已注入到 OllamaChatModel");
+            }
 
             return builder.build();
         }
@@ -250,11 +249,10 @@ public class AiConfig {
                     .logResponses(true);
 
             // 注入监控监听器（如果存在）
-            // TODO: 临时禁用，等待 LangChain4j API 兼容性修复
-            // if (aiMonitoringListener != null) {
-            //     builder.listeners(List.of(aiMonitoringListener));
-            //     log.debug("✅ AI 监控监听器已注入到 OpenAiChatModel");
-            // }
+            if (aiMonitoringListener != null) {
+                builder.listeners(List.of(aiMonitoringListener));
+                log.debug("✅ AI 监控监听器已注入到 OpenAiChatModel");
+            }
 
             return builder.build();
         }
