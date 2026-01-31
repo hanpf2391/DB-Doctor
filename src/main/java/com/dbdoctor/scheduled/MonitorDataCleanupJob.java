@@ -39,8 +39,12 @@ public class MonitorDataCleanupJob {
     @Scheduled(cron = "${db-doctor.monitoring.auto-cleanup.cron-expression:0 0 2 * * ?}")
     public void cleanupExpiredMonitorData() {
         // 检查是否启用自动清理
-        if (properties.getMonitoring() == null ||
-            properties.getMonitoring().getAutoCleanup() == null ||
+        if (properties.getMonitoring() == null) {
+            log.debug("[AI监控] 监控配置未启用，跳过本次执行");
+            return;
+        }
+
+        if (properties.getMonitoring().getAutoCleanup() == null ||
             !properties.getMonitoring().getAutoCleanup().getEnabled()) {
             log.debug("[AI监控] 自动清理未启用，跳过本次执行");
             return;

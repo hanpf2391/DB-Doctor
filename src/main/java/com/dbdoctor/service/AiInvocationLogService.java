@@ -32,18 +32,18 @@ public class AiInvocationLogService {
     /**
      * 异步保存 AI 调用日志（不阻塞 AI 调用线程）
      *
-     * @param log 日志实体
+     * @param invocationLog 日志实体
      */
     @Async("monitoringExecutor")
     @Transactional
-    public void saveAsync(AiInvocationLog log) {
+    public void saveAsync(AiInvocationLog invocationLog) {
         try {
-            repository.save(log);
+            repository.save(invocationLog);
             log.debug("[AI监控] 日志已保存: id={}, agent={}, duration={}ms",
-                    log.getId(), log.getAgentName(), log.getDurationMs());
+                    invocationLog.getId(), invocationLog.getAgentName(), invocationLog.getDurationMs());
         } catch (Exception e) {
             log.error("[AI监控] 保存日志失败: agent={}, traceId={}",
-                    log.getAgentName(), log.getTraceId(), e);
+                    invocationLog.getAgentName(), invocationLog.getTraceId(), e);
             // 不抛出异常，避免影响 AI 调用
         }
     }
@@ -51,12 +51,12 @@ public class AiInvocationLogService {
     /**
      * 同步保存 AI 调用日志
      *
-     * @param log 日志实体
+     * @param invocationLog 日志实体
      * @return 保存后的实体
      */
     @Transactional
-    public AiInvocationLog save(AiInvocationLog log) {
-        return repository.save(log);
+    public AiInvocationLog save(AiInvocationLog invocationLog) {
+        return repository.save(invocationLog);
     }
 
     /**

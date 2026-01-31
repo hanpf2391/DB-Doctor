@@ -73,6 +73,12 @@ public class DbDoctorProperties {
     private EnvCheckConfig envCheck = new EnvCheckConfig();
 
     /**
+     * 监控配置（v2.3.0）
+     */
+    @Valid
+    private MonitoringConfig monitoring = new MonitoringConfig();
+
+    /**
      * AI 配置
      */
     @Data
