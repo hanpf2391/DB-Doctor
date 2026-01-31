@@ -2,7 +2,6 @@ package com.dbdoctor.config;
 
 import com.dbdoctor.agent.DiagnosticTools;
 import com.dbdoctor.agent.DiagnosticToolsImpl;
-import com.dbdoctor.agent.SqlDiagnosticsTools;
 import com.dbdoctor.agent.DBAgent;
 import com.dbdoctor.agent.ReasoningAgent;
 import com.dbdoctor.agent.CodingAgent;
@@ -33,9 +32,6 @@ public class AiConfig {
 
     @Autowired
     private AiProperties properties;
-
-    @Autowired
-    private SqlDiagnosticsTools sqlDiagnosticsTools;
 
     @Autowired
     @Qualifier("targetJdbcTemplate")
@@ -84,6 +80,20 @@ public class AiConfig {
     }
 
     /**
+     * 配置 DiagnosticTools Bean（诊断工具箱）
+     *
+     * 注意：返回的是 DiagnosticToolsImpl 实例，作为 Spring Bean 管理
+     * 但在 DBAgent 中仍会创建新的非代理实例用于 LangChain4j 工具调用
+     *
+     * @return DiagnosticTools 实例
+     */
+    @Bean
+    public DiagnosticTools diagnosticTools() {
+        log.info("初始化 DiagnosticTools Bean（用于 MultiAgentCoordinator）");
+        return new DiagnosticToolsImpl(targetJdbcTemplate);
+    }
+
+    /**
      * 配置 DBAgent Bean（主治医生）
      *
      * 核心特性：
@@ -119,8 +129,8 @@ public class AiConfig {
                 .chatLanguageModel(reasoningChatLanguageModel)
                 .build();
 
-        // 注入到 SqlDiagnosticsTools（方便工具类调用专家）
-        sqlDiagnosticsTools.setReasoningAgent(agent);
+        // 注意：SqlDiagnosticsTools 已废弃，不再注入 Agent
+        // sqlDiagnosticsTools.setReasoningAgent(agent);
 
         return agent;
     }
@@ -138,8 +148,8 @@ public class AiConfig {
                 .chatLanguageModel(codingChatLanguageModel)
                 .build();
 
-        // 注入到 SqlDiagnosticsTools（方便工具类调用专家）
-        sqlDiagnosticsTools.setCodingAgent(agent);
+        // 注意：SqlDiagnosticsTools 已废弃，不再注入 Agent
+        // sqlDiagnosticsTools.setCodingAgent(agent);
 
         return agent;
     }

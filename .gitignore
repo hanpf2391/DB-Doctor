@@ -10,8 +10,8 @@
 # -------------------------
 # 开发文档（不提交）
 # -------------------------
-todo/
-docs/
+docs/frontend/
+# docs/  # ← 已移除：允许提交设计文档
 CLAUDE.md
 
 # -------------------------
@@ -73,6 +73,12 @@ pom.xml.versionsBackup
 pom.xml.next
 release.properties
 dependency-reduced-pom.xml
+
+# 前端（Node.js/Vue）
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
 
 # Gradle
 build/

@@ -10,25 +10,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * SQL 诊断工具箱实现
- * 提供 AI Agent 可调用的数据库诊断工具方法
+ * SQL 诊断工具箱实现（已废弃）
  *
- * 核心功能：
- * - 查询表结构信息
- * - 获取执行计划
- * - 查询表统计信息
- * - 检查索引选择性
- * - 对比 SQL 性能
+ * ⚠️ 该类已被 DiagnosticToolsImpl 替代
+ * 新实现返回 ToolResult 类型，提供企业级错误处理
  *
- * 注意：推理专家和编码专家通过 Spring 注入，但不作为工具暴露给 AI
- *
+ * @deprecated 请使用 DiagnosticToolsImpl 代替
  * @author DB-Doctor
- * @version 2.2.0
+ * @version 2.2.0 (废弃于 3.0.0)
  */
 @Slf4j
-@Component
+// @Component  // ⚠️ 已禁用，使用 DiagnosticToolsImpl 代替
 @RequiredArgsConstructor
-public class SqlDiagnosticsTools implements DiagnosticTools {
+@Deprecated
+public class SqlDiagnosticsTools {  // 不再实现 DiagnosticTools 接口
 
     private final JdbcTemplate targetJdbcTemplate;
 

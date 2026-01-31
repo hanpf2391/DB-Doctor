@@ -14,9 +14,9 @@
 
     <groupId>com.dbdoctor</groupId>
     <artifactId>db-doctor</artifactId>
-    <version>1.0.0</version>
+    <version>3.0.0</version>
     <name>DB-Doctor</name>
-    <description>MySQL 慢查询智能诊疗系统</description>
+    <description>MySQL 慢查询智能诊疗系统（企业级异常处理）</description>
 
     <properties>
         <java.version>17</java.version>

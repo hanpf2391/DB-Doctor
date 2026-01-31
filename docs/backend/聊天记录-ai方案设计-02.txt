@@ -1,0 +1,166 @@
+
+Model
+ThinkingThoughts
+Auto
+Expand to view model thoughts
+
+chevron_right
+Model
+好的，你这一连串的问题，拳拳到肉，全部打在了多 Agent 架构的“数据流”和“决策逻辑”两大命脉上。
+我们必须把这些问题彻底理清，否则整个“剧本”就无法开拍。
+我将用最清晰的逻辑，逐一回答你的每一个疑惑，并为你设计出完整的入参模型和数据流转方案。
+疑惑一：“AI分析的结果是不是也需要一张表呢，怎么存呢？”
+回答：不需要额外的新表。 你现有的 SLOW_QUERY_TEMPLATE 表就是存储分析结果的唯一正确位置。
+怎么存：
+最终报告 -> 存入 ai_analysis_report 字段。这是给用户看的完整 Markdown 报告。
+诊断状态 -> 更新 status 字段 (SUCCESS / ERROR)。这是给系统看的工作流状态。
+严重等级 -> 更新 severity_level 字段 (CRITICAL / HIGH ...)。这是给通知车间看的分级凭证。
+【关键补充】：我强烈建议你再加一个字段 last_explain_json (TEXT)，用来存储本次分析时获取到的 EXPLAIN 结果。这是实现“智能重分析”预检的核心数据。
+疑惑二：“我能不能把历史分析结果作为入参给到 AI 帮助诊断？”
+回答：能，而且必须能！ 这是让你的 AI 从“初诊医生”升级为“复诊专家”的关键一步。
+不看历史病历的医生不是好医生。AI 如果不知道上次的诊断结论是“索引缺失”，这次它可能会重复提出同样的建议，显得非常不智能。
+疑惑三：“那我要怎么给到 AI 呢？是直接默认给，还是包装成工具让主治医师自己调？”
+这是你所有问题中，最核心、最见功力的一个。不同的选择，决定了你的 Agent 到底是“聪明的助理”还是“真正的决策者”。
+【最终方案】：采用“默认投喂 + 工具可选”的混合模式。
+1. 默认投喂 (Default Feed) - 减轻 Agent 负担
+做什么：在启动整个多 Agent 流程的最开始，Java 代码就从 H2 的 TEMPLATE 表中，把 last_analysis_report 字段查出来。
+怎么给：将这份历史报告，作为初始上下文的一部分，直接塞进 DiagnosisAgent (主治医生) 的第一个 Prompt 里。
+Prompt 示例：
+code
+Code
+你是一名数据库主治医生。
+
+【病人基本信息】
+SQL 模板: SELECT * FROM users WHERE id = ?
+数据库: my_app_db
+
+【历史病历 (上次诊断报告)】
+{{ last_analysis_report 内容... 如果没有就是 '无' }}
+
+【本次病情快照】
+- 平均耗时从 3.5s 恶化到 7.1s
+- 最近 5 分钟出现 50 次
+
+【你的任务】
+请根据以上所有信息，开始你的诊断...
+为什么这么做：这保证了主治医生在开口说第一句话之前，就已经知晓了全部历史。他不需要再去思考“我是不是该查一下历史？”。这极大地简化了他的决策路径，让他能更快地进入正题。
+2. 工具可选 (Optional Tool) - 用于深度溯源
+做什么：你可能不仅想看上次的报告，还想看上上次、上上上次的。这时，就需要一个工具。
+设计一个新工具：get_historical_diagnoses(sql_fingerprint, limit=3)
+工具作用：从 SLOW_QUERY_TEMPLATE 的历史版本表（如果未来你做了历史版本控制）或者日志中，查询该指纹过去 N 次的诊断报告。
+什么情况下主治医生会调用：
+病情反复：当主治医生发现，本次的问题和上次的报告结论不符时（比如上次建议加索引A，但这次慢查询依然存在且 EXPLAIN 显示走了索引A但效果不好）。
+慢性病史：当他发现这是一个长期存在的“老毛病”，他可能会想看看过去几个月的演变过程，以判断是不是数据量增长等更深层次的原因。
+【Prompt 引导】：你需要在主治医生的 System Prompt 里引导他：规则：如果当前问题与历史病历明显矛盾，或疑似慢性病，你可以调用 get_historical_diagnoses 工具进行深度溯源。
+完整入参与数据流转（修正版）
+现在，我们把所有 Agent 和工具的输入参数 (Input) 和输出 (Output) 重新定义得清清楚楚：
+1. 启动流程的初始入参 (Java -> DiagnosisAgent)
+code
+JSON
+{
+  "sql_fingerprint": "a1b2...",
+  "sql_template": "SELECT ...",
+  "db_name": "my_app_db",
+  "current_stats": {
+    "avg_query_time": 7.1,
+    "occurrence_count_since_last_analysis": 50,
+    ...
+  },
+  "recent_samples": [ // SLOW_QUERY_SAMPLE 表里最近的5条
+    {"query_time": 6.8, "rows_examined": 50000, ...},
+    ...
+  ],
+  "last_analysis_report": "上次的报告内容..."
+}
+2. Java Tools 的入参
+getExecutionPlan(sql_template): 输入 SQL模板字符串 -> 输出 EXPLAIN JSON字符串。
+getTableSchema(table_name): 输入 表名 -> 输出 CREATE TABLE 字符串。
+... 其他工具类似，都是简单、原子的输入输出 ...
+3. consult_expert (特殊工具) 的入参
+这是主治医生呼叫专家的“转诊单”，信息必须齐全。
+code
+JSON
+{
+  "request_reason": "主治医生认为存在隐式转换，请求确认",
+  "sql_template": "SELECT ...",
+  "explain_json": "{...}",
+  "related_schemas": {
+    "users": "CREATE TABLE users...",
+    "orders": "CREATE TABLE orders..."
+  },
+
+  "historical_context": "上次诊断报告内容..."
+}
+输出: 专家的深度分析报告 (字符串)。
+4. perform_surgery (特殊工具) 的入参
+这是主治医生给外科医生的“手术通知单”。
+code
+JSON
+{
+  "diagnosis_conclusion": "已确认，原因为 users.id(bigint) 与 orders.user_id(varchar) 存在隐式转换，导致索引失效。",
+  "optimization_goal": "1. 解决隐式转换。 2. 为 create_time 字段添加索引。"
+}
+输出: 可执行的代码块 (字符串)。
+总结：
+分析结果就存在 TEMPLATE 表里，无需新表，但建议增加 last_explain_json 字段。
+历史报告必须给 AI，这是提升诊断质量的关键。
+采用**“默认投喂 + 工具可选”**的混合模式，既高效又智能。
+我已经为你设计了精确到字段的、各环节的入参模型。
+按照这个设计，你的多 Agent 系统就拥有了清晰、可靠的“数据动脉”。
+Model
+你说得完全正确！我之前的表述出现了一个明显的逻辑矛盾，感谢你如此敏锐地指出了这个硬伤。
+你说得对，如果 TEMPLATE 表里只有一个 ai_analysis_report 字段，那它存的永远只是**“最近一次”的报告。在这种设计下，让 AI 去“深度溯源”过去 N 次的历史，是根本不可能**的，因为数据就不存在。
+我必须为此道歉，并为你提供一个真正可行的、能解决这个矛盾的商业化工程方案。
+问题根源：我们混淆了“状态快照”和“操作日志”
+你现在的 TEMPLATE 表，本质是一个状态快-照 (State Snapshot) 表。它只关心一个指纹当前是什么状态，上次的报告是什么。
+而“深度溯源”需要的是一个操作日志 (Operation Log) 或 历史版本 (Versioning) 的概念。
+修正方案：引入“分析日志表”，彻底分离“当前状态”与“历史过程”
+为了实现真正的历史溯源，同时又不让你的主表 TEMPLATE 变得臃肿，最成熟的做法是增加一张专门的“分析日志”表。
+1. 新表设计：ANALYSIS_LOG (分析日志表)
+核心职责: 记录每一次由“调度器”发起的、成功的“多 Agent 诊断”的最终结果。
+关系性质: 1:N (一个 SQL 指纹，对应 N 条分析日志)。
+字段名	类型	说明
+id	BIGINT	主键 (自增)
+sql_fingerprint	VARCHAR(64)	关联到 TEMPLATE 表的指纹
+analysis_time	DATETIME	本次分析完成的时间
+trigger_reason	VARCHAR(50)	触发本次分析的原因 (e.g., "FIRST_SEEN", "PERFORMANCE_DEGRADATION")
+severity_level	VARCHAR(20)	本次分析评定的严重等级
+analysis_report	CLOB	本次分析生成的完整报告 (Markdown)
+explain_json	TEXT	本次分析时使用的 EXPLAIN 快照
+related_stats_json	TEXT	本次分析时使用的相关统计数据快照 (JSON)
+2. 修正后的数据存储流程
+当 DiagnosisWorker (诊断车间) 完成一次成功的分析后，它需要做两件事：
+更新 TEMPLATE 表：将最新的报告、状态、严重等级等信息更新到 TEMPLATE 表中。这保证了 TEMPLATE 表永远反映的是**“当前最新快照”**。
+插入 ANALYSIS_LOG 表：将本次分析的所有产物（报告、原因、EXPLAIN等）作为一条新的历史记录，插入到 ANALYSIS_LOG 表中。
+3. 修正后的多 Agent 工具设计
+现在，“深度溯源”的工具就变得逻辑清晰且数据可得了。
+工具：get_historical_diagnoses(sql_fingerprint, limit=3)
+内部实现：
+code
+SQL
+SELECT analysis_time, trigger_reason, severity_level, analysis_report
+FROM ANALYSIS_LOG
+WHERE sql_fingerprint = ?
+ORDER BY analysis_time DESC
+LIMIT ?
+```*   **输出**: 一个包含过去 N 次诊断历史的 JSON 数组字符串。
+重新回答你最核心的那个问题
+“是直接默认给到ai，还是说吧查询历史分析记过包装成一个工具让主治医师自己是情况自己调用呢”
+现在，我们有了两类历史数据，可以给出完美的答案了：
+“最近一次”的分析报告 (TEMPLATE.ai_analysis_report)
+处理方式：默认投喂。
+理由：这是最高频、最重要的上下文。主治医生必须在第一时间知道上次的结论，这样可以避免 90% 的重复劳动。
+“过去 N 次”的分析日志 (ANALYSIS_LOG)
+处理方式：包装成 get_historical_diagnoses 工具，让主治医生可选调用。
+理由：
+成本考虑：不是所有诊断都需要看全部历史。把这些可能很长的历史记录作为工具，只在必要时加载，可以节省大量的 Token。
+赋予 Agent 决策能力：这真正体现了主治医生的“智能”。它可以在看到“默认投喂”的上次报告后，自己判断“嗯，上次的结论好像解释不了现在的问题，我需要挖得更深一点”，然后主动去调用工具。
+总结：
+你之前的质疑是 100% 正确的。我的方案存在明显的矛盾。
+修正后的、无懈可击的商业化方案是：
+TEMPLATE 表：作为状态机和最新快照，负责工作流转和快速查询。
+ANALYSIS_LOG 表：作为历史档案馆，负责记录每一次诊断的完整过程，为深度溯源提供数据支持。
+数据流：
+**默认投喂“最新快照”**给主治医生。
+提供“历史查询工具” 供主治医生在疑难杂症时自主选择调用。
+这个**“快照 + 日志”**的设计模式，是所有需要进行历史追溯的监控和诊断系统的标准做法。它完美地平衡了数据查询的效率、存储的开销和 Agent 获取上下文的灵活性。

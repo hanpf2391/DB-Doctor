@@ -1,0 +1,78 @@
+📋 提示词：DB-Doctor 中间件开发需求文档 (最终版)
+角色设定：
+你是一位精通 Java 高并发编程、Spring Boot 生态以及 LangChain4j AI 应用开发的资深架构师。
+项目背景：
+我要开发一款名为 "DB-Doctor" 的开源数据库诊断中间件。
+它的核心定位是：非侵入式 MySQL 慢查询智能诊疗系统。
+它部署在应用服务器上，像一个 24 小时待命的 DBA，实时监听 MySQL 的 slow.log，利用 AI Agent 分析根因，并推送优化建议。
+一、 技术栈与工程标准
+JDK 版本：Java 17+。
+核心框架：Spring Boot 3.x。
+AI 框架：LangChain4j (对接 OpenAI 或兼容接口)。
+文件 IO：Apache Commons IO (使用 Tailer 实现实时文件监听)。
+数据库交互：Druid 连接池 + JdbcTemplate (需配置为只读模式)。
+工具类：Hutool (用于 HTTP 请求和字符串处理)、FastJson2/Jackson。
+打包方式：使用 Maven Assembly Plugin，实现 “代码与配置分离” 的 Nacos 式发布结构。
+二、 核心架构设计 (三大模块)
+请将项目解耦为以下三个核心 Service：
+1. 监听模块 (LogMonitorService)
+职责：实现对 MySQL 慢查询日志文件 (slow.log) 的实时增量读取（类似 Linux tail -f）。
+核心逻辑：
+在 Spring Boot 启动时，开启一个守护线程运行 Tailer。
+日志解析状态机：解析多行日志，识别 # Time: 开始标记，提取 Query_time (实际耗时), Rows_examined (扫描行数), Lock_time (锁等待时间) 以及纯净的 SQL 语句。
+削峰填谷：解析完成后，将任务丢入 线程池 (ThreadPoolExecutor) 异步处理，防止阻塞 IO。
+2. 大脑模块 (AnalysisService & DBAgent)
+这是系统的核心，基于 LangChain4j 的 ReAct 模式。
+输入：包含上下文的对象：{sql, queryTime, rowsExamined, lockTime}。
+诊断逻辑（“验尸”对比模式）：
+逻辑核心：对比 “慢日志里的真实数据 (rowsExamined)” 和 “AI 调工具查到的理论数据 (Explain rows)”。
+必备 Tools (工具箱)：需实现一个 SqlDiagnosticsTools Bean，包含以下 @Tool 方法：
+getExecutionPlan(sql): 执行 EXPLAIN FORMAT=JSON，获取 query_cost。
+getTableSchema(tableName): 执行 SHOW CREATE TABLE，查看字段类型和现有索引。
+getIndexSelectivity(tableName): 执行 SHOW INDEX，计算索引基数占比。
+getTableStatistics(tableName): (关键) 查询 information_schema 或 innodb_table_stats，获取表的最新更新时间 (update_time)。用途：用于判断统计信息是否过期，如果过期，Agent 应建议执行 ANALYZE TABLE。
+getLockInfo(): 查询 innodb_lock_waits，排查锁阻塞。
+compareSqlPerformance(oldSql, newSql): 对比优化前后 SQL 的 EXPLAIN Cost（只做 Explain，不真实运行）。
+3. 通知模块 (NotifyService)
+职责：将 AI 生成的 Markdown 格式分析报告发送给用户。
+实现：定义 Notifier 接口，支持 Email (JavaMailSender) 和 Webhook (钉钉/飞书) 两种实现，通过配置切换。
+三、 详细功能需求 (Agent 提示词设计)
+请为 Agent 设计一段 System Prompt，核心要点：
+角色：资深 MySQL DBA。
+安全红线：严禁给出 DROP, TRUNCATE 等危险建议。
+思考路径：
+先看 Lock_time，排除锁问题。
+再看表结构，检查字段类型（防止隐式转换）。
+再看执行计划，重点关注 type=ALL 和 Using filesort。
+统计信息检查：如果 Explain 预估行数很少，但日志扫描行数很大，必须调用 getTableStatistics 检查是否需要刷新统计信息。
+输出格式：Markdown 格式。
+四、 最终交付物要求 (项目目录结构)
+请按照以下标准的 Maven 项目结构生成代码，不要只列出文件，要展示它们在项目中的位置：
+code
+Text
+db-doctor/
+├── pom.xml                                          # 1. 项目依赖管理
+├── src/
+│   ├── main/
+│   │   ├── java/com/dbdoctor/
+│   │   │   ├── DbDoctorApplication.java             # 启动类
+│   │   │   ├── config/
+│   │   │   │   ├── AiConfig.java                    # LangChain4j 配置
+│   │   │   │   └── ThreadPoolConfig.java            # 线程池配置
+│   │   │   ├── service/
+│   │   │   │   ├── LogMonitorService.java           # 2. 日志监听与解析 (含 Tailer)
+│   │   │   │   ├── AnalysisService.java             # 业务逻辑层 (调度 Agent)
+│   │   │   │   └── NotifyService.java               # 通知发送
+│   │   │   ├── agent/
+│   │   │   │   ├── DBAgent.java                     # 4. Agent 接口定义 (@SystemMessage)
+│   │   │   │   └── tools/
+│   │   │   │       └── SqlDiagnosticsTools.java     # 3. 核心工具箱 (@Tool 定义)
+│   │   │   └── model/
+│   │   │       └── SlowLogEntry.java                # 实体类
+│   │   └── resources/
+│   │       └── application.yml                      # 5. 配置文件模板
+│   └── assembly/
+│       └── package.xml                              # 6. Maven Assembly 打包配置
+└── bin/
+    ├── startup.sh                                   # Linux 启动脚本
+    └── startup.cmd                                  # Windows 启动脚本

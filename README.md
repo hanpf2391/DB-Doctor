@@ -85,12 +85,266 @@ cd db-doctor
 编辑 `src/main/resources/application-local.yml`：
 
 ```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/information_schema
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
 db-doctor:
   target-db:
-    url: jdbc:mysql://localhost:3306/information_schema
-    username: your_mysql_username
-    password: your_mysql_password
+    host: localhost
+    port: 3306
+    username: root
+    password: your_password
 ```
+
+#### 🗄️ MySQL 数据库访问说明
+
+**1. 确保 MySQL 服务运行**
+
+```bash
+# Windows
+# 检查 MySQL 服务是否启动
+sc query MySQL80
+
+# 启动 MySQL 服务
+net start MySQL80
+
+# Linux/Mac
+sudo systemctl start mysql
+sudo systemctl status mysql
+```
+
+**2. 连接 MySQL 数据库**
+
+**命令行方式**：
+```bash
+# 连接 MySQL
+mysql -u root -p
+
+# 进入后显示所有数据库
+SHOW DATABASES;
+
+# 切换到 information_schema
+USE information_schema;
+
+# 查看表
+SHOW TABLES;
+```
+
+**图形化工具（推荐）**：
+
+| 工具 | 下载地址 | 特点 |
+|------|---------|------|
+| **MySQL Workbench** | https://dev.mysql.com/downloads/workbench/ | 官方工具，功能全面 |
+| **Navicat** | https://www.navicat.com/ | 界面友好，商业软件 |
+| **DBeaver** | https://dbeaver.io/ | 免费开源，轻量级 |
+| **phpMyAdmin** | https://www.phpmyadmin.net/ | Web 界面，适合 LAMP |
+
+**使用 MySQL Workbench 连接**：
+```
+1. 打开 MySQL Workbench
+2. 点击 "+" 创建新连接
+3. 填写连接信息：
+   - Hostname: 127.0.0.1 或 localhost
+   - Port: 3306
+   - Username: root
+   - Password: 你的 MySQL 密码
+4. 点击 "Test Connection" 测试连接
+5. 点击 "OK" 保存连接
+```
+
+**3. 查看慢查询日志**
+
+```sql
+-- 切换到 information_schema 数据库
+USE information_schema;
+
+-- 查看 PROCESSLIST 表（存储慢查询日志）
+-- 注意：MySQL 8.0+ 默认使用系统表，慢查询日志记录在 mysql.slow_log 表
+SELECT * FROM mysql.slow_log LIMIT 10;
+```
+
+**4. 配置慢查询日志（如未配置）**
+
+```sql
+-- 开启慢查询日志
+SET GLOBAL slow_query_log = 'ON';
+
+-- 设置日志输出方式（TABLE = 表, FILE = 文件）
+SET GLOBAL log_output = 'TABLE';
+
+-- 设置慢查询阈值（单位：秒）
+SET GLOBAL long_query_time = 2.0;
+
+-- 验证配置
+SHOW VARIABLES LIKE 'slow_query%';
+SHOW VARIABLES LIKE 'long_query_time';
+```
+
+**5. 常用数据库操作**
+
+```bash
+# 创建数据库
+mysql -u root -p -e "CREATE DATABASE test_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 导入数据
+mysql -u root -p test_db < test_db.sql
+
+# 导出数据库
+mysqldump -u root -p test_db > test_db_backup.sql
+
+# 查看数据库大小
+mysql -u root -p -e "SELECT table_schema AS 'Database',
+  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)'
+  FROM information_schema.tables
+  GROUP BY table_schema;"
+```
+
+**6. 测试数据库连接**
+
+在 `application-local.yml` 配置完成后，可以通过以下方式测试连接：
+
+```bash
+# 使用 telnet 测试端口
+telnet localhost 3306
+
+# 或使用 nc 命令（Linux/Mac）
+nc -zv localhost 3306
+```
+
+如果连接成功，会显示 `Escape character is ^]` 或 `Connected to localhost`。
+
+---
+
+### 2.5 H2 数据库访问说明（开发/测试）
+
+DB-Doctor 使用 **H2 内存数据库**存储慢查询分析历史，可通过以下方式访问：
+
+#### 🌐 H2 Web Console（推荐）
+
+**启动后访问 H2 Console**：
+```
+URL: http://localhost:8080/h2-console
+JDBC URL: jdbc:h2:mem:dbdoctor
+用户名: sa
+密码: (留空)
+```
+
+**连接步骤**：
+1. 启动 DB-Doctor 后端服务
+2. 浏览器访问：`http://localhost:8080/h2-console`
+3. 填写连接信息：
+   - **Saved Settings**: `Generic H2 (Embedded)`
+   - **Driver Class**: `org.h2.Driver`
+   - **JDBC URL**: `jdbc:h2:mem:dbdoctor`
+   - **User Name**: `sa`
+   - **Password**: (留空)
+4. 点击 "Connect" 连接
+
+#### 📊 H2 数据库表结构
+
+连接成功后，可以查看以下表：
+
+```sql
+-- 查看所有表
+SHOW TABLES;
+
+-- 慢查询模板表（核心表）
+SELECT * FROM slow_query_template;
+
+-- 查看最近的慢查询分析记录
+SELECT
+  id,
+  sql_fingerprint,
+  db_name,
+  table_name,
+  avg_query_time,
+  max_query_time,
+  occurrence_count,
+  severity_level,
+  status,
+  first_seen_time,
+  last_seen_time
+FROM slow_query_template
+ORDER BY last_seen_time DESC
+LIMIT 10;
+
+-- 查看统计信息
+SELECT
+  COUNT(*) as total_templates,
+  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as success_count,
+  COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_count,
+  COUNT(CASE WHEN severity_level = '🔴 严重' THEN 1 END) as critical_count
+FROM slow_query_template;
+```
+
+#### 🔧 JDBC 连接方式（使用工具）
+
+**DBeaver 连接 H2**：
+```
+1. 下载 DBeaver: https://dbeaver.io/
+2. 创建新连接 → 选择 "H2 Embedded"
+3. Database path: `mem:dbdoctor`
+4. User name: `sa`
+5. Password: (留空)
+```
+
+**IntelliJ IDEA Database 工具**：
+```
+1. 右侧 Database 面板 → "+" → Data Source → H2
+2. File: `mem:dbdoctor`
+3. User: `sa`
+4. 点击 "Test Connection"
+```
+
+#### 💾 H2 数据持久化（可选）
+
+**当前配置**：H2 数据存储在内存中，重启后数据丢失。
+
+**持久化到文件**：修改 `application-local.yml`：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/dbdoctor  # 改为文件模式
+    # url: jdbc:h2:mem:dbdoctor     # 内存模式（默认）
+```
+
+重启后，数据将保存在项目根目录的 `./data/dbdoctor.mv.db` 文件中。
+
+#### 🛠️ 常用 H2 操作
+
+```sql
+-- 查看所有表
+SHOW TABLES;
+
+-- 查看表结构
+DESCRIBE slow_query_template;
+
+-- 查看索引
+SHOW INDEX FROM slow_query_template;
+
+-- 清空测试数据（开发调试用）
+DELETE FROM slow_query_template;
+
+-- 查看数据库版本
+SELECT H2_VERSION();
+```
+
+#### ⚠️ H2 数据库特点
+
+| 特性 | 说明 |
+|------|------|
+| **内存模式** | 数据保存在内存中，重启丢失（默认） |
+| **文件模式** | 数据持久化到文件，重启保留 |
+| **轻量级** | 无需独立安装数据库服务 |
+| **开发友好** | 启动快，适合测试环境 |
+| **Web Console** | 自带 Web 管理界面 |
+
+**注意**：生产环境建议使用 MySQL 或 PostgreSQL，H2 仅用于开发/测试。
 
 ### 3. 配置 AI
 

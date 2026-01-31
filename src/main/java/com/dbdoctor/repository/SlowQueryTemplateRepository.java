@@ -151,4 +151,20 @@ public interface SlowQueryTemplateRepository extends JpaRepository<SlowQueryTemp
      * @return 需要清理的记录列表
      */
     List<SlowQueryTemplate> findByLastSeenTimeBefore(LocalDateTime cutoffDate);
+
+    /**
+     * 统计指定状态的记录数
+     *
+     * @param status 分析状态
+     * @return 记录数
+     */
+    long countByStatus(SlowQueryTemplate.AnalysisStatus status);
+
+    /**
+     * 统计指定严重程度的记录数
+     *
+     * @param severityLevel 严重程度
+     * @return 记录数
+     */
+    long countBySeverityLevel(SeverityLevel severityLevel);
 }

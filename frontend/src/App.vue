@@ -12,6 +12,10 @@
         class="sidebar-menu"
       >
         <el-menu-item index="/">
+          <el-icon><Odometer /></el-icon>
+          <span>仪表盘</span>
+        </el-menu-item>
+        <el-menu-item index="/reports">
           <el-icon><DataAnalysis /></el-icon>
           <span>慢查询报表</span>
         </el-menu-item>
@@ -28,12 +32,16 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <!-- 系统监控浮窗 -->
+    <SystemMonitor />
   </el-container>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import SystemMonitor from '@/components/SystemMonitor.vue'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)

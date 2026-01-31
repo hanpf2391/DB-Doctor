@@ -74,4 +74,75 @@ public class ReportController {
                 "data", detail
         );
     }
+
+    /**
+     * 重新分析慢查询
+     *
+     * @param id 模板 ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/reanalyze")
+    public Map<String, Object> reanalyze(@PathVariable Long id) {
+        log.info("重新分析慢查询: id={}", id);
+
+        try {
+            reportService.reanalyze(id);
+            return Map.of(
+                    "code", 200,
+                    "message", "已提交重新分析",
+                    "data", Map.of("id", id)
+            );
+        } catch (Exception e) {
+            log.error("重新分析失败: id={}", id, e);
+            return Map.of(
+                    "code", 500,
+                    "message", "重新分析失败: " + e.getMessage(),
+                    "data", null
+            );
+        }
+    }
+
+    /**
+     * 获取慢查询趋势数据（按小时统计）
+     *
+     * @param date 日期（yyyy-MM-dd）
+     * @param dbName 数据库名（可选）
+     * @return 趋势数据
+     */
+    @GetMapping("/trend")
+    public Map<String, Object> getTrend(
+            @RequestParam String date,
+            @RequestParam(required = false) String dbName
+    ) {
+        log.info("查询慢查询趋势: date={}, dbName={}", date, dbName);
+
+        Map<String, Object> trend = reportService.getTrend(date, dbName);
+
+        return Map.of(
+                "code", 200,
+                "message", "success",
+                "data", trend
+        );
+    }
+
+    /**
+     * 获取 Top N 慢查询
+     *
+     * @param limit 数量限制
+     * @return Top 慢查询列表
+     */
+    @GetMapping("/top")
+    public Map<String, Object> getTopSlow(
+            @RequestParam(defaultValue = "5") Integer limit
+    ) {
+        log.info("查询 Top 慢查询: limit={}", limit);
+
+        Map<String, Object> topSlow = reportService.getTopSlow(limit);
+
+        return Map.of(
+                "code", 200,
+                "message", "success",
+                "data", topSlow
+        );
+    }
 }

@@ -11,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +30,7 @@ import java.util.Optional;
 public class ReportService {
 
     private final SlowQueryTemplateRepository templateRepository;
+    private final AnalysisService analysisService;
 
     /**
      * 分页查询慢查询报表
@@ -41,9 +44,14 @@ public class ReportService {
     public Map<String, Object> getReports(int page, int size, String dbName, String severityLevel) {
         log.info("查询报表列表: page={}, size={}, dbName={}, severity={}", page, size, dbName, severityLevel);
 
+        // 处理空字符串参数，转换为 null（避免 SQL 查询时 t.dbName = '' 的问题）
+        if (dbName != null && dbName.trim().isEmpty()) {
+            dbName = null;
+        }
+
         // 转换严重程度字符串为枚举
         SeverityLevel severity = null;
-        if (severityLevel != null && !severityLevel.isEmpty()) {
+        if (severityLevel != null && !severityLevel.trim().isEmpty()) {
             try {
                 severity = SeverityLevel.valueOf(severityLevel.toUpperCase());
             } catch (IllegalArgumentException e) {
@@ -88,14 +96,28 @@ public class ReportService {
 
         SlowQueryTemplate template = templateOpt.get();
 
-        return Map.of(
-                "id", template.getId(),
-                "fingerprint", template.getSqlFingerprint(),
-                "dbName", template.getDbName() != null ? template.getDbName() : "",
-                "tableName", template.getTableName() != null ? template.getTableName() : "",
-                "sqlTemplate", template.getSqlTemplate() != null ? template.getSqlTemplate() : "",
-                "reportMarkdown", template.getAiAnalysisReport() != null ? template.getAiAnalysisReport() : "暂无分析报告"
-        );
+        // 构建 Map（因为字段超过 10 个，不能用 Map.of）
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", template.getId());
+        result.put("fingerprint", template.getSqlFingerprint());
+        result.put("dbName", template.getDbName() != null ? template.getDbName() : "");
+        result.put("tableName", template.getTableName() != null ? template.getTableName() : "");
+        result.put("sqlTemplate", template.getSqlTemplate() != null ? template.getSqlTemplate() : "");
+        result.put("sqlFingerprint", template.getSqlFingerprint());
+        result.put("avgQueryTime", template.getAvgQueryTime() != null ? template.getAvgQueryTime() : 0.0);
+        result.put("maxQueryTime", template.getMaxQueryTime() != null ? template.getMaxQueryTime() : 0.0);
+        result.put("lockTime", 0.0);
+        result.put("rowsExamined", 0);
+        result.put("rowsSent", 0);
+        result.put("occurrenceCount", template.getOccurrenceCount() != null ? template.getOccurrenceCount() : 0L);
+        result.put("severityLevel", template.getSeverityLevel() != null ? template.getSeverityLevel().getDisplayName() : "🟢 正常");
+        result.put("analysisStatus", template.getStatus() != null ? template.getStatus().name() : "PENDING");
+        result.put("lastSeenTime", template.getLastSeenTime() != null
+                ? template.getLastSeenTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                : "");
+        result.put("aiAnalysisReport", template.getAiAnalysisReport() != null ? template.getAiAnalysisReport() : "暂无分析报告");
+
+        return result;
     }
 
     /**
@@ -117,5 +139,115 @@ public class ReportService {
                 ? template.getLastSeenTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                 : "");
         return dto;
+    }
+
+    /**
+     * 重新分析慢查询
+     * 将状态重置为 PENDING，触发新的 AI 分析流程
+     *
+     * @param id 模板 ID
+     */
+    public void reanalyze(Long id) {
+        log.info("重新分析慢查询: id={}", id);
+
+        Optional<SlowQueryTemplate> templateOpt = templateRepository.findById(id);
+        if (templateOpt.isEmpty()) {
+            throw new IllegalArgumentException("慢查询模板不存在: " + id);
+        }
+
+        SlowQueryTemplate template = templateOpt.get();
+
+        // 重置状态为 PENDING
+        template.setStatus(SlowQueryTemplate.AnalysisStatus.PENDING);
+
+        // 清空旧的分析报告（可选）
+        template.setAiAnalysisReport(null);
+
+        // ✅ 更新最后发现时间为当前时间（确保会被 PendingTaskRetryService 处理）
+        template.setLastSeenTime(java.time.LocalDateTime.now());
+
+        // 保存
+        templateRepository.save(template);
+
+        log.info("慢查询已重新提交分析: id={}, fingerprint={}", id, template.getSqlFingerprint());
+
+        // ✅ 立即触发异步分析（不等待定时任务）
+        log.info("🚀 立即触发 AI 分析: id={}, fingerprint={}", id, template.getSqlFingerprint());
+        analysisService.generateReportAndNotify(template);
+    }
+
+    /**
+     * 获取慢查询趋势数据（按小时统计）
+     *
+     * @param date 日期（yyyy-MM-dd）
+     * @param dbName 数据库名（可选）
+     * @return 趋势数据
+     */
+    public Map<String, Object> getTrend(String date, String dbName) {
+        log.info("查询慢查询趋势: date={}, dbName={}", date, dbName);
+
+        // 解析日期
+        LocalDateTime startDate;
+        LocalDateTime endDate;
+
+        try {
+            startDate = LocalDate.parse(date).atStartOfDay();
+            endDate = startDate.plusDays(1);
+        } catch (Exception e) {
+            log.error("日期格式错误: {}", date);
+            return Map.of(
+                    "hours", new int[0],
+                    "counts", new int[0]
+            );
+        }
+
+        // 查询当天数据（简单实现：24 小时统计）
+        // 注意：这是一个简化实现，实际可能需要使用更复杂的 SQL 聚合查询
+        int[] hours = new int[24];
+        int[] counts = new int[24];
+
+        for (int i = 0; i < 24; i++) {
+            hours[i] = i;
+            counts[i] = 0; // TODO: 实现按小时统计的查询
+        }
+
+        return Map.of(
+                "hours", hours,
+                "counts", counts,
+                "date", date
+        );
+    }
+
+    /**
+     * 获取 Top N 慢查询
+     *
+     * @param limit 数量限制
+     * @return Top 慢查询列表
+     */
+    public Map<String, Object> getTopSlow(int limit) {
+        log.info("查询 Top 慢查询: limit={}", limit);
+
+        // 按最大耗时排序查询
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "maxQueryTime"));
+        Page<SlowQueryTemplate> result = templateRepository.findAll(pageable);
+
+        var records = result.getContent().stream()
+                .map(template -> Map.of(
+                        "id", template.getId(),
+                        "fingerprint", template.getSqlFingerprint(),
+                        "dbName", template.getDbName() != null ? template.getDbName() : "",
+                        "tableName", template.getTableName() != null ? template.getTableName() : "",
+                        "sqlTemplate", template.getSqlTemplate() != null ? template.getSqlTemplate() : "",
+                        "maxQueryTime", template.getMaxQueryTime() != null ? template.getMaxQueryTime() : 0.0,
+                        "avgQueryTime", template.getAvgQueryTime() != null ? template.getAvgQueryTime() : 0.0,
+                        "occurrenceCount", template.getOccurrenceCount() != null ? template.getOccurrenceCount() : 0L,
+                        "severityLevel", template.getSeverityLevel() != null ? template.getSeverityLevel().getDisplayName() : "🟢 正常"
+                ))
+                .toList();
+
+        return Map.of(
+                "records", records,
+                "total", result.getTotalElements()
+        );
     }
 }

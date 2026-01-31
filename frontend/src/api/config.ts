@@ -107,6 +107,16 @@ export function getReportDetail(id: number) {
 }
 
 /**
+ * 重新分析报告
+ */
+export function reanalyzeReport(id: number) {
+  return request({
+    url: `/reports/${id}/reanalyze`,
+    method: 'post'
+  })
+}
+
+/**
  * 系统维护相关 API
  */
 

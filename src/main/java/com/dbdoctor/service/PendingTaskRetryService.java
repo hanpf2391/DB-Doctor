@@ -66,11 +66,11 @@ public class PendingTaskRetryService {
         try {
             log.debug("🔍 开始扫描待重试的 PENDING 任务...");
 
-            // 查询条件：
+            // 查询条件（v3.0.0 修复）：
             // 1. status = PENDING
             // 2. 创建时间 > 应用启动时间（本次运行的任务）
-            // 3. lastSeenTime < 15 分钟前（避免正在进行的任务）
-            LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(15);
+            // 3. lastSeenTime 超过 2 分钟未更新（可能是卡住的任务）
+            LocalDateTime cutoffTime = LocalDateTime.now().minusMinutes(2);
             List<SlowQueryTemplate> pendingTasks = templateRepo.findPendingTasksForRetry(
                 applicationStartTime,
                 cutoffTime
@@ -81,7 +81,7 @@ public class PendingTaskRetryService {
                 return;
             }
 
-            log.info("🔍 发现 {} 个待重试的任务", pendingTasks.size());
+            log.info("🔍 发现 {} 个待重试的任务（lastSeenTime 超过 2 分钟未更新）", pendingTasks.size());
 
             for (SlowQueryTemplate template : pendingTasks) {
                 try {

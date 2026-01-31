@@ -22,9 +22,10 @@
 
         <el-form-item label="严重程度">
           <el-select v-model="filters.severity" placeholder="全部" clearable>
-            <el-option label="🔴 严重" value="critical" />
-            <el-option label="🟠 警告" value="warning" />
-            <el-option label="🟢 正常" value="normal" />
+            <el-option label="严重" value="CRITICAL" />
+            <el-option label="警告" value="WARNING" />
+            <el-option label="注意" value="NOTE" />
+            <el-option label="正常" value="NORMAL" />
           </el-select>
         </el-form-item>
 
@@ -36,42 +37,80 @@
 
       <!-- 报表列表 -->
       <el-table :data="reports" v-loading="loading" stripe>
-        <el-table-column prop="fingerprint" label="指纹" width="200" show-overflow-tooltip />
+        <!-- 指纹列 -->
+        <el-table-column label="指纹" width="180">
+          <template #default="scope">
+            <div class="fingerprint-cell">
+              <code class="fingerprint-text">{{ scope.row.fingerprint?.substring(0, 8) }}...</code>
+              <el-button
+                link
+                type="primary"
+                :icon="DocumentCopy"
+                @click="copyFingerprint(scope.row.fingerprint)"
+              />
+            </div>
+          </template>
+        </el-table-column>
+
+        <!-- SQL 模板列 -->
+        <el-table-column label="SQL 模板" min-width="300">
+          <template #default="scope">
+            <SqlTooltip :sql="scope.row.sqlTemplate" :max-length="80" />
+          </template>
+        </el-table-column>
+
+        <!-- 数据库列 -->
         <el-table-column prop="dbName" label="数据库" width="120" />
+
+        <!-- 表名列 -->
         <el-table-column prop="tableName" label="表名" width="120" />
-        <el-table-column prop="avgQueryTime" label="平均耗时(秒)" width="120">
+
+        <!-- 平均耗时列 -->
+        <el-table-column prop="avgQueryTime" label="平均耗时" width="120" sortable>
           <template #default="scope">
-            <el-tag v-if="scope.row.avgQueryTime > 5" type="danger">
-              {{ scope.row.avgQueryTime }}
-            </el-tag>
-            <el-tag v-else-if="scope.row.avgQueryTime > 3" type="warning">
-              {{ scope.row.avgQueryTime }}
-            </el-tag>
-            <el-tag v-else type="success">
-              {{ scope.row.avgQueryTime }}
+            <el-tag :type="getQueryTimeType(scope.row.avgQueryTime)">
+              {{ formatSeconds(scope.row.avgQueryTime) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="occurrenceCount" label="出现次数" width="100" />
-        <el-table-column prop="severityLevel" label="严重程度" width="100" />
-        <el-table-column prop="analysisStatus" label="分析状态" width="120">
+
+        <!-- 出现次数列 -->
+        <el-table-column prop="occurrenceCount" label="出现次数" width="100" sortable />
+
+        <!-- 严重程度列 -->
+        <el-table-column prop="severityLevel" label="严重程度" width="100">
           <template #default="scope">
-            <el-tag v-if="scope.row.analysisStatus === 'COMPLETED'" type="success">
-              已完成
-            </el-tag>
-            <el-tag v-else-if="scope.row.analysisStatus === 'PENDING'" type="warning">
-              等待中
-            </el-tag>
-            <el-tag v-else type="info">
-              {{ scope.row.analysisStatus }}
+            <el-tag :type="getSeverityTagType(scope.row.severityLevel)">
+              {{ getSeverityText(scope.row.severityLevel) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lastSeenTime" label="最后出现时间" width="180" />
-        <el-table-column label="操作" width="120" fixed="right">
+
+        <!-- 状态列 -->
+        <el-table-column prop="analysisStatus" label="状态" width="150">
+          <template #default="scope">
+            <StatusTag :status="scope.row.analysisStatus" />
+          </template>
+        </el-table-column>
+
+        <!-- 最后出现时间列 -->
+        <el-table-column prop="lastSeenTime" label="最后出现" width="170" />
+
+        <!-- 操作列 -->
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="scope">
             <el-button link type="primary" @click="viewReport(scope.row)">
+              <el-icon><View /></el-icon>
               查看报告
+            </el-button>
+            <el-button
+              link
+              type="success"
+              :loading="scope.row.reanalyzing"
+              @click="handleReanalyze(scope.row)"
+            >
+              <el-icon><RefreshRight /></el-icon>
+              重新诊断
             </el-button>
           </template>
         </el-table-column>
@@ -90,28 +129,28 @@
       />
     </el-card>
 
-    <!-- 报告详情对话框 -->
-    <el-dialog
+    <!-- 报告详情抽屉 -->
+    <ReportDetail
       v-model="showReportDetail"
-      title="慢查询分析报告"
-      width="80%"
-      top="5vh"
-    >
-      <div v-html="renderedReport" class="report-content"></div>
-    </el-dialog>
+      :report-id="selectedReportId"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { marked } from 'marked'
-import { getReports, getReportDetail } from '@/api/config'
+import { DocumentCopy, View, RefreshRight, Refresh } from '@element-plus/icons-vue'
+import { getReports, reanalyzeReport } from '@/api/config'
+import ReportDetail from './ReportDetail/ReportDetail.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import SqlTooltip from '@/components/SqlTooltip.vue'
+import { formatSeconds } from '@/utils/format'
 
 const loading = ref(false)
-const reports = ref([])
+const reports = ref<any[]>([])
 const showReportDetail = ref(false)
-const renderedReport = ref('')
+const selectedReportId = ref(0)
 
 const filters = reactive({
   dbName: '',
@@ -137,7 +176,7 @@ async function loadReports() {
     }
 
     const result = await getReports(params)
-    reports.value = result.records || []
+    reports.value = (result.records || []).map((r: any) => ({ ...r, reanalyzing: false }))
     pagination.total = result.total || 0
   } catch (error) {
     ElMessage.error('加载报表失败')
@@ -166,16 +205,70 @@ function resetFilters() {
 /**
  * 查看报告详情
  */
-async function viewReport(row: any) {
-  try {
-    const result = await getReportDetail(row.id)
-    const markdown = result.reportMarkdown || '# 暂无分析报告\n\n该慢查询还没有完成 AI 分析。'
+function viewReport(row: any) {
+  selectedReportId.value = row.id
+  showReportDetail.value = true
+}
 
-    renderedReport.value = marked(markdown)
-    showReportDetail.value = true
+/**
+ * 复制指纹
+ */
+async function copyFingerprint(fingerprint: string) {
+  try {
+    await navigator.clipboard.writeText(fingerprint)
+    ElMessage.success('已复制到剪贴板')
   } catch (error) {
-    ElMessage.error('加载报告失败')
+    ElMessage.error('复制失败')
   }
+}
+
+/**
+ * 重新诊断
+ */
+async function handleReanalyze(row: any) {
+  row.reanalyzing = true
+  try {
+    await reanalyzeReport(row.id)
+    ElMessage.success('已提交重新分析')
+    // 延迟刷新，让用户看到成功提示
+    setTimeout(() => {
+      loadReports()
+    }, 1000)
+  } catch (error: any) {
+    ElMessage.error(error.message || '重新分析失败')
+  } finally {
+    row.reanalyzing = false
+  }
+}
+
+/**
+ * 获取耗时 Tag 类型
+ */
+function getQueryTimeType(time: number): 'success' | 'warning' | 'danger' {
+  if (time > 2.0) return 'danger'
+  if (time > 1.0) return 'warning'
+  return 'success'
+}
+
+/**
+ * 获取严重程度 Tag 类型
+ */
+function getSeverityTagType(severity: string): 'success' | 'warning' | 'danger' | 'info' {
+  if (severity.includes('严重')) return 'danger'
+  if (severity.includes('警告')) return 'warning'
+  if (severity.includes('注意')) return 'info'
+  return 'success'
+}
+
+/**
+ * 获取严重程度文本
+ */
+function getSeverityText(severity: string): string {
+  if (severity.includes('严重')) return '严重'
+  if (severity.includes('警告')) return '警告'
+  if (severity.includes('注意')) return '注意'
+  if (severity.includes('正常')) return '正常'
+  return severity
 }
 
 onMounted(() => {
@@ -185,7 +278,7 @@ onMounted(() => {
 
 <style scoped>
 .reports-page {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -203,24 +296,16 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
-.report-content {
-  max-height: 70vh;
-  overflow-y: auto;
+.fingerprint-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.report-content :deep(h1),
-.report-content :deep(h2),
-.report-content :deep(h3) {
-  margin-top: 20px;
-}
-
-.report-content :deep(pre) {
-  background-color: #f5f7fa;
-  padding: 15px;
-  border-radius: 4px;
-}
-
-.report-content :deep(code) {
+.fingerprint-text {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #606266;
   background-color: #f5f7fa;
   padding: 2px 6px;
   border-radius: 3px;

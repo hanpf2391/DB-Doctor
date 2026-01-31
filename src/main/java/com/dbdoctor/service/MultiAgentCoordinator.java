@@ -2,16 +2,20 @@ package com.dbdoctor.service;
 
 import com.dbdoctor.agent.CodingAgent;
 import com.dbdoctor.agent.DBAgent;
+import com.dbdoctor.agent.DiagnosticTools;
 import com.dbdoctor.agent.ReasoningAgent;
-import com.dbdoctor.agent.SqlDiagnosticsTools;
 import com.dbdoctor.common.util.PromptUtil;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.AnalysisContext;
+import com.dbdoctor.model.ToolResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /**
  * 多 Agent 协调器
@@ -20,6 +24,7 @@ import org.springframework.stereotype.Service;
  * - 协调 3 个 Agent 的协作流程
  * - 实现单 Agent 模式和多 Agent 模式的切换
  * - 整合各 Agent 的输出，生成最终报告
+ * - v3.0：集成熔断器，使用 ToolResult 统一错误处理
  *
  * 协作流程（ReAct 模式）：
  * 1. DiagnosisAgent（主治医生）：初步诊断，收集证据
@@ -31,7 +36,7 @@ import org.springframework.stereotype.Service;
  * 5. 整合所有输出，生成最终报告
  *
  * @author DB-Doctor
- * @version 1.0.0
+ * @version 3.0.0
  */
 @Slf4j
 @Service
@@ -41,7 +46,8 @@ public class MultiAgentCoordinator {
     private final DBAgent diagnosisAgent;          // 主治医生
     private final ReasoningAgent reasoningAgent;    // 推理专家
     private final CodingAgent codingAgent;          // 编码专家
-    private final SqlDiagnosticsTools tools;        // 诊断工具箱
+    private final DiagnosticTools tools;            // 诊断工具箱（统一接口）
+    private final CircuitBreaker circuitBreaker;    // 熔断器
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;            // 提示词工具
 
@@ -180,12 +186,61 @@ public class MultiAgentCoordinator {
         log.info("调用推理专家 Agent 进行深度推理");
 
         try {
-            // 准备统计信息和执行计划的 JSON 格式
+            // 准备统计信息的 JSON 格式
             String statisticsJson = toJson(context.getTemplateStats());
-            String executionPlanJson = toJson(tools.getExecutionPlan(
+
+            // 🔧 v3.0：使用熔断器获取执行计划
+            String toolName = "getExecutionPlan";
+            ToolResult executionPlanResult;
+
+            // 检查熔断器
+            if (!circuitBreaker.allowExecution(toolName)) {
+                log.warn("⛔ 熔断器阻止: 工具 {} 被熔断", toolName);
+                return null;
+            }
+
+            // 调用工具
+            executionPlanResult = tools.getExecutionPlan(
                 context.getDbName(),
                 context.getSampleSql()
-            ));
+            );
+
+            // 记录结果到熔断器
+            circuitBreaker.recordResult(toolName, executionPlanResult);
+
+            // 检查结果
+            if (!executionPlanResult.isSuccess()) {
+                log.warn("⚠️ 工具返回失败: errorCode={}, userMessage={}",
+                        executionPlanResult.getErrorCode(),
+                        executionPlanResult.getUserMessage());
+
+                // 如果是阻断性错误，直接返回 null
+                if (executionPlanResult.shouldCircuitBreak()) {
+                    return null;
+                }
+            }
+
+            String executionPlanJson = executionPlanResult.isSuccess() ?
+                executionPlanResult.getData() : null;
+
+            // 🔧 严格参数校验：如果关键信息为空，返回 null 并记录原因
+            if (diagnosisReport == null || diagnosisReport.length() < 50) {
+                log.warn("⚠️ 主治医生诊断报告为空或过短，跳过推理专家分析");
+                return null;
+            }
+
+            if (executionPlanJson == null || executionPlanJson.equals("{}")) {
+                log.warn("⚠️ 执行计划为空，跳过推理专家分析");
+                return null;
+            }
+
+            // 🔧 检查诊断报告中是否包含环境错误
+            if (diagnosisReport.contains("⚠️ 环境检查失败") ||
+                diagnosisReport.contains("数据库不存在") ||
+                diagnosisReport.contains("表不存在")) {
+                log.warn("⚠️ 主治医生报告中包含环境错误，跳过推理专家分析");
+                return null;
+            }
 
             return reasoningAgent.performDeepReasoning(
                 diagnosisReport,
@@ -194,7 +249,7 @@ public class MultiAgentCoordinator {
             );
         } catch (Exception e) {
             log.error("推理专家分析失败", e);
-            return "## 推理专家分析失败\n\n错误信息：" + e.getMessage();
+            return null; // ← 返回null而不是错误信息
         }
     }
 
@@ -209,13 +264,63 @@ public class MultiAgentCoordinator {
         log.info("调用编码专家 Agent 生成优化方案");
 
         try {
-            String executionPlanJson = toJson(tools.getExecutionPlan(
+            // 🔧 如果推理专家分析失败，跳过编码专家
+            if (reasoningReport == null || reasoningReport.length() < 50) {
+                log.warn("⚠️ 推理专家报告为空或过短，跳过编码专家分析");
+                return null;
+            }
+
+            // 🔧 检查推理报告中是否包含错误信息
+            if (reasoningReport.contains("⚠️ 无法进行深度分析") ||
+                reasoningReport.contains("⚠️ 环境检查失败") ||
+                reasoningReport.contains("数据库不存在") ||
+                reasoningReport.contains("表不存在")) {
+                log.warn("⚠️ 推理专家报告中包含环境错误，跳过编码专家分析");
+                return null;
+            }
+
+            // 🔧 v3.0：使用熔断器获取执行计划
+            String toolName = "getExecutionPlan";
+            ToolResult executionPlanResult;
+
+            // 检查熔断器
+            if (!circuitBreaker.allowExecution(toolName)) {
+                log.warn("⛔ 熔断器阻止: 工具 {} 被熔断", toolName);
+                return null;
+            }
+
+            // 调用工具
+            executionPlanResult = tools.getExecutionPlan(
                 context.getDbName(),
                 context.getSampleSql()
-            ));
+            );
 
-            // 提取推理专家的核心建议作为问题描述
+            // 记录结果到熔断器
+            circuitBreaker.recordResult(toolName, executionPlanResult);
+
+            // 检查结果
+            if (!executionPlanResult.isSuccess()) {
+                log.warn("⚠️ 工具返回失败: errorCode={}, userMessage={}",
+                        executionPlanResult.getErrorCode(),
+                        executionPlanResult.getUserMessage());
+
+                // 如果是阻断性错误，直接返回 null
+                if (executionPlanResult.shouldCircuitBreak()) {
+                    return null;
+                }
+            }
+
+            String executionPlanJson = executionPlanResult.isSuccess() ?
+                executionPlanResult.getData() : null;
+
+            // 🔧 提取推理专家的核心建议作为问题描述
             String problemDesc = extractProblemDescription(reasoningReport);
+
+            // 🔧 再次校验参数
+            if (problemDesc == null || problemDesc.equals("无问题描述") || problemDesc.length() < 20) {
+                log.warn("⚠️ 问题描述为空或过短，跳过编码专家分析");
+                return null;
+            }
 
             return codingAgent.generateOptimizationCode(
                 context.getSampleSql(),
@@ -224,7 +329,7 @@ public class MultiAgentCoordinator {
             );
         } catch (Exception e) {
             log.error("编码专家生成优化方案失败", e);
-            return "## 编码专家生成优化方案失败\n\n错误信息：" + e.getMessage();
+            return null; // ← 返回null而不是错误信息
         }
     }
 
@@ -277,7 +382,8 @@ public class MultiAgentCoordinator {
 
         // === 报告尾部 ===
         report.append("---\n\n");
-        report.append("**生成时间**: ").append(java.time.LocalDateTime.now()).append("\n\n");
+        String formattedTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        report.append("**生成时间**: ").append(formattedTime).append("\n\n");
         report.append("**DB-Doctor 版本**: v1.0.0\n\n");
 
         return report.toString();

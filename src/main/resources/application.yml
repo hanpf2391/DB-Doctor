@@ -62,9 +62,9 @@ spring:
 db-doctor:
   # 项目基本信息
   name: DB-Doctor
-  version: 2.2.0
+  version: 3.0.0
   build-time: @maven.build.timestamp@
-  description: MySQL 慢查询智能诊疗系统
+  description: MySQL 慢查询智能诊疗系统（企业级异常处理）
 
 # Git 信息由 git-commit-id-plugin 自动生成，无需手动配置
 
@@ -218,6 +218,22 @@ db-doctor:
       # 队列容量：缓冲突发任务（建议值 100-200）
       # 验证范围：10-10000
       queue-capacity: 200
+
+  # === v3.0 企业级异常处理配置 ===
+  # 熔断器配置
+  circuit-breaker:
+    # 连续失败多少次触发熔断
+    # 验证范围：1-10
+    failure-threshold: 3
+    # 熔断持续时间（秒）
+    # 验证范围：10-600
+    timeout-seconds: 60
+    # 半开状态最多允许的调用次数（用于试探性调用）
+    # 验证范围：1-5
+    half-open-max-calls: 1
+    # 无错误后多久重置计数器（秒）
+    # 验证范围：60-3600
+    reset-timeout-seconds: 300
 
   # 性能测试配置
   test:

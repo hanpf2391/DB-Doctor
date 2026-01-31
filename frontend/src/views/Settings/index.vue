@@ -9,27 +9,19 @@
 
       <el-tabs v-model="activeTab" type="border-card">
         <el-tab-pane label="目标数据库" name="target-db">
-          <div class="tab-content">
-            <p>目标数据库配置页面 - 开发中...</p>
-          </div>
+          <TargetDb />
         </el-tab-pane>
 
         <el-tab-pane label="AI 大脑配置" name="ai">
-          <div class="tab-content">
-            <p>AI 配置页面 - 开发中...</p>
-          </div>
+          <AiConfig />
         </el-tab-pane>
 
         <el-tab-pane label="监控与通知" name="monitor-notify">
-          <div class="tab-content">
-            <p>监控与通知配置页面 - 开发中...</p>
-          </div>
+          <MonitorNotify />
         </el-tab-pane>
 
         <el-tab-pane label="系统维护" name="maintenance">
-          <div class="tab-content">
-            <p>系统维护页面 - 开发中...</p>
-          </div>
+          <Maintenance />
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -38,6 +30,10 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import TargetDb from './TargetDb.vue'
+import AiConfig from './AiConfig.vue'
+import MonitorNotify from './MonitorNotify.vue'
+import Maintenance from './Maintenance.vue'
 
 const activeTab = ref('target-db')
 </script>
