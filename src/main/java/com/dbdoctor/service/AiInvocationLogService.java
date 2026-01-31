@@ -194,4 +194,52 @@ public class AiInvocationLogService {
         LocalDateTime startTime = endTime.minusHours(24);
         return new LocalDateTime[]{startTime, endTime};
     }
+
+    /**
+     * 计算成本（根据 Token 单价）
+     *
+     * @param startTime 开始时间
+     * @param endTime   结束时间
+     * @param tokenPrices Token 单价映射（模型名 -> 单价/1K tokens）
+     * @return 成本统计 Map
+     */
+    public Map<String, Object> calculateCost(LocalDateTime startTime, LocalDateTime endTime,
+                                              Map<String, Double> tokenPrices) {
+        Map<String, Object> costStats = new LinkedHashMap<>();
+
+        // 获取所有日志记录
+        List<AiInvocationLog> logs = repository.findByConditions(startTime, endTime, null, null);
+
+        // 按模型统计 Token 消耗
+        Map<String, Long> modelTokens = new LinkedHashMap<>();
+        Map<String, Integer> modelCalls = new LinkedHashMap<>();
+        Map<String, Double> modelCosts = new LinkedHashMap<>();
+
+        double totalCost = 0.0;
+        long totalTokens = 0;
+
+        for (AiInvocationLog log : logs) {
+            String modelName = log.getModelName();
+            int tokens = log.getTotalTokens();
+
+            modelTokens.put(modelName, modelTokens.getOrDefault(modelName, 0L) + tokens);
+            modelCalls.put(modelName, modelCalls.getOrDefault(modelName, 0) + 1);
+            totalTokens += tokens;
+
+            // 计算成本
+            double price = tokenPrices.getOrDefault(modelName, 0.0);
+            double cost = (tokens / 1000.0) * price;
+            modelCosts.put(modelName, modelCosts.getOrDefault(modelName, 0.0) + cost);
+            totalCost += cost;
+        }
+
+        costStats.put("totalCost", Math.round(totalCost * 10000.0) / 10000.0); // 保留4位小数
+        costStats.put("totalTokens", totalTokens);
+        costStats.put("modelTokens", modelTokens);
+        costStats.put("modelCalls", modelCalls);
+        costStats.put("modelCosts", modelCosts);
+        costStats.put("timeRange", startTime + " ~ " + endTime);
+
+        return costStats;
+    }
 }

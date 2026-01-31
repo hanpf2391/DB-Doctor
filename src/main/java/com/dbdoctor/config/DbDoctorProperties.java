@@ -321,4 +321,73 @@ public class DbDoctorProperties {
          */
         private Boolean autoFix = false;
     }
+
+    /**
+     * 监控配置（v2.3.0）
+     */
+    @Data
+    public static class MonitoringConfig {
+        /**
+         * 是否启用 AI 监控
+         */
+        private Boolean enabled = true;
+
+        /**
+         * 是否存储提示词和响应（调试用，会占用大量存储空间）
+         */
+        private Boolean savePromptResponse = false;
+
+        /**
+         * 数据保留天数（默认 90 天）
+         * 范围：1-365
+         */
+        @Min(value = 1, message = "数据保留天数至少为 1 天")
+        @Max(value = 365, message = "数据保留天数最多 365 天")
+        private Integer retentionDays = 90;
+
+        /**
+         * 自动清理配置
+         */
+        @Valid
+        private AutoCleanupConfig autoCleanup = new AutoCleanupConfig();
+
+        /**
+         * 成本计算配置
+         */
+        @Valid
+        private CostCalculationConfig costCalculation = new CostCalculationConfig();
+    }
+
+    /**
+     * 自动清理配置
+     */
+    @Data
+    public static class AutoCleanupConfig {
+        /**
+         * 是否启用自动清理（默认 false）
+         */
+        private Boolean enabled = false;
+
+        /**
+         * 清理任务的 cron 表达式
+         * 默认值：每天凌晨 2 点
+         */
+        private String cronExpression = "0 0 2 * * ?";
+    }
+
+    /**
+     * 成本计算配置
+     */
+    @Data
+    public static class CostCalculationConfig {
+        /**
+         * 是否启用成本计算
+         */
+        private Boolean enabled = false;
+
+        /**
+         * 各模型的 Token 单价（元/1K tokens）
+         */
+        private java.util.Map<String, Double> prices = new java.util.HashMap<>();
+    }
 }
