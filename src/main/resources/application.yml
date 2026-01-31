@@ -219,6 +219,36 @@ db-doctor:
       # 验证范围：10-10000
       queue-capacity: 200
 
+  # === v2.3.0 AI 监控配置 ===
+  # 监控配置
+  monitoring:
+    # 是否启用 AI 监控
+    # 验证范围：true/false
+    enabled: true
+
+    # 是否存储提示词和响应（调试用，会占用大量存储空间）
+    # 验证范围：true/false
+    # ⚠️ 警告：启用后会产生大量数据，建议仅在调试时开启
+    save-prompt-response: false
+
+    # 数据保留天数（默认 90 天）
+    # 验证范围：1-365
+    retention-days: 90
+
+    # 成本计算配置
+    cost-calculation:
+      # 是否启用成本计算
+      # 验证范围：true/false
+      enabled: false
+
+      # 各模型的 Token 单价（元/1K tokens）
+      prices:
+        qwen2.5:7b: 0.0      # 本地模型，免费
+        qwen2.5:14b: 0.0     # 本地模型，免费
+        deepseek-r1: 0.001   # DeepSeek 价格
+        gpt-4: 0.03          # GPT-4 价格
+        gpt-3.5-turbo: 0.002 # GPT-3.5 价格
+
   # === v3.0 企业级异常处理配置 ===
   # 熔断器配置
   circuit-breaker:
