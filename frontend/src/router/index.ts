@@ -40,6 +40,22 @@ const router = createRouter({
           component: () => import('@/views/Settings/Maintenance.vue')
         }
       ]
+    },
+    {
+      path: '/ai-monitor',
+      name: 'AiMonitor',
+      redirect: '/ai-monitor/index',
+      component: () => import('@/views/AiMonitor/index.vue')
+    },
+    {
+      path: '/ai-monitor/index',
+      name: 'AiMonitorIndex',
+      component: () => import('@/views/AiMonitor/index.vue')
+    },
+    {
+      path: '/ai-monitor/invocation-log',
+      name: 'AiMonitorInvocationLog',
+      component: () => import('@/views/AiMonitor/InvocationLog.vue')
     }
   ]
 })
