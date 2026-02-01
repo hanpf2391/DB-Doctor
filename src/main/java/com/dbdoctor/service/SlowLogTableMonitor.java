@@ -290,7 +290,7 @@ public class SlowLogTableMonitor {
                     rows_examined,
                     db,
                     CONVERT(sql_text USING utf8) AS sql_content
-                FROM test.slow_log
+                FROM mysql.slow_log
                 WHERE start_time > ?
                 ORDER BY start_time ASC
                 LIMIT %d

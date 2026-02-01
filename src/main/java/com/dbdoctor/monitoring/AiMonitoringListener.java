@@ -57,13 +57,15 @@ public class AiMonitoringListener implements ChatModelListener {
     @Override
     public void onRequest(ChatModelRequestContext context) {
         try {
-            // 使用上下文的 hashCode 作为请求 ID
-            String requestId = String.valueOf(context.hashCode());
+            // 使用内存地址作为请求 ID
+            String requestId = String.valueOf(System.identityHashCode(context));
+            String requestContextId = String.valueOf(System.identityHashCode(context.request()));
 
-            // 记录开始时间
+            // 记录开始时间（保存两个 key 以确保匹配）
             requestStartTimes.put(requestId, LocalDateTime.now());
+            requestStartTimes.put(requestContextId, LocalDateTime.now());
 
-            log.debug("[AI监控] 请求开始: requestId={}", requestId);
+            log.debug("[AI监控] 请求开始: requestId={}, requestContextId={}", requestId, requestContextId);
         } catch (Exception e) {
             // 记录错误但不抛出异常，避免影响 AI 调用
             log.error("[AI监控] onRequest 处理失败", e);
@@ -78,12 +80,19 @@ public class AiMonitoringListener implements ChatModelListener {
     @Override
     public void onResponse(ChatModelResponseContext context) {
         try {
-            String requestId = String.valueOf(context.hashCode());
+            // 尝试多个方式获取 requestId
+            Object requestContext = context.request();
+            String contextId = String.valueOf(System.identityHashCode(context));
+            String requestContextId = String.valueOf(System.identityHashCode(requestContext));
 
-            // 获取开始时间
-            LocalDateTime startTime = requestStartTimes.remove(requestId);
+            // 尝试从两个可能的 key 中获取开始时间
+            LocalDateTime startTime = requestStartTimes.remove(contextId);
             if (startTime == null) {
-                log.warn("[AI监控] 无法找到请求开始时间: requestId={}", requestId);
+                startTime = requestStartTimes.remove(requestContextId);
+            }
+
+            if (startTime == null) {
+                log.warn("[AI监控] 无法找到请求开始时间: contextId={}, requestContextId={}", contextId, requestContextId);
                 startTime = LocalDateTime.now(); // 使用当前时间作为备选
             }
 

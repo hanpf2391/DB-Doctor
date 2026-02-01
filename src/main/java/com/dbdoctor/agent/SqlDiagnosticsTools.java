@@ -332,11 +332,17 @@ public class SqlDiagnosticsTools {  // 不再实现 DiagnosticTools 接口
         log.debug("诊断报告: {}", diagnosisReport);
 
         try {
-            String deepAnalysis = reasoningAgent.performDeepReasoning(
-                diagnosisReport,
-                statistics,
-                executionPlan
+            // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
+            String formattedPrompt = String.format(
+                "请基于主治医生的诊断报告，进行深度推理分析：\n\n" +
+                "【主治医生诊断报告】\n%s\n\n" +
+                "【统计信息】\n%s\n\n" +
+                "【执行计划】\n%s\n\n" +
+                "请按照你的分析框架，从症状分析→根因推理→优化路径推导，给出完整的推理报告。",
+                diagnosisReport, statistics, executionPlan
             );
+
+            String deepAnalysis = reasoningAgent.performDeepReasoning(formattedPrompt);
             log.info("推理专家分析完成");
             return deepAnalysis;
         } catch (Exception e) {
@@ -360,11 +366,20 @@ public class SqlDiagnosticsTools {  // 不再实现 DiagnosticTools 接口
         log.debug("原始 SQL: {}", originalSql);
 
         try {
-            String optimizationCode = codingAgent.generateOptimizationCode(
-                originalSql,
-                problemDesc,
-                executionPlan
+            // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
+            String formattedPrompt = String.format(
+                "请基于问题描述，生成 SQL 优化方案：\n\n" +
+                "【原始 SQL】\n%s\n\n" +
+                "【问题分析】\n%s\n\n" +
+                "【执行计划】\n%s\n\n" +
+                "请按照你的优化原则，生成完整的优化方案，包括：\n" +
+                "1. 优化后的 SQL（保持语义等价）\n" +
+                "2. 推荐的索引设计\n" +
+                "3. 实施建议和回滚方案",
+                originalSql, problemDesc, executionPlan
             );
+
+            String optimizationCode = codingAgent.generateOptimizationCode(formattedPrompt);
             log.info("编码专家优化方案生成完成");
             return optimizationCode;
         } catch (Exception e) {

@@ -223,33 +223,11 @@ public interface CodingAgent {
     /**
      * 生成 SQL 优化方案
      *
-     * @param originalSql 原始 SQL
-     * @param problemDesc 问题描述（来自推理专家的分析）
-     * @param executionPlan 执行计划
+     * @param formattedPrompt 格式化后的提示词（包含原始SQL、问题描述、执行计划）
      * @return 优化方案（Markdown 格式）
      */
-    @UserMessage("""
-            请基于问题描述，生成 SQL 优化方案：
-
-            【原始 SQL】
-            {originalSql}
-
-            【问题分析】
-            {problemDesc}
-
-            【执行计划】
-            {executionPlan}
-
-            请按照你的优化原则，生成完整的优化方案，包括：
-            1. 优化后的 SQL（保持语义等价）
-            2. 推荐的索引设计
-            3. 实施建议和回滚方案
-            """)
-    String generateOptimizationCode(
-            @V("originalSql") String originalSql,
-            @V("problemDesc") String problemDesc,
-            @V("executionPlan") String executionPlan
-    );
+    @UserMessage("{{formattedPrompt}}")
+    String generateOptimizationCode(@V("formattedPrompt") String formattedPrompt);
 
     /**
      * 生成索引创建语句

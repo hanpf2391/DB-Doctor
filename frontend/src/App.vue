@@ -3,8 +3,9 @@
     <!-- 侧边栏 -->
     <el-aside width="200px">
       <div class="logo">
+        <img src="@/assets/logo.png" alt="DB-Doctor Logo" class="logo-img" />
         <h2>DB-Doctor</h2>
-        <p>v2.3.0</p>
+        <p>v2.3.2</p>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -76,6 +77,15 @@ body {
   padding: 20px;
   text-align: center;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-container .logo-img {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px;
 }
 
 .app-container .logo h2 {

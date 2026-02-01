@@ -1,5 +1,5 @@
 import request from './index'
-import type { DashboardStats, TrendData, TopSlowData } from '@/views/Dashboard/types'
+import type { DashboardStats, TrendData, TopSlowData, TemplateSqlStats } from '@/views/Dashboard/types'
 
 /**
  * 获取今日概览统计
@@ -39,6 +39,16 @@ export function getTopSlow(limit: number = 5): Promise<TopSlowData> {
 export function getQueueStatus() {
   return request({
     url: '/system/queue-status',
+    method: 'get'
+  })
+}
+
+/**
+ * 获取模板-SQL关联统计
+ */
+export function getTemplateSqlStats(): Promise<TemplateSqlStats> {
+  return request({
+    url: '/system/template-sql-stats',
     method: 'get'
   })
 }

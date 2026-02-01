@@ -140,28 +140,9 @@ public interface ReasoningAgent {
     /**
      * 深度推理分析
      *
-     * @param diagnosisReport 主治医生的初步诊断报告
-     * @param statistics 统计信息
-     * @param executionPlan 执行计划
+     * @param formattedPrompt 格式化后的提示词（包含诊断报告、统计信息、执行计划）
      * @return 深度推理报告（Markdown 格式）
      */
-    @UserMessage("""
-            请基于主治医生的诊断报告，进行深度推理分析：
-
-            【主治医生诊断报告】
-            {diagnosisReport}
-
-            【统计信息】
-            {statistics}
-
-            【执行计划】
-            {executionPlan}
-
-            请按照你的分析框架，从症状分析→根因推理→优化路径推导，给出完整的推理报告。
-            """)
-    String performDeepReasoning(
-            @V("diagnosisReport") String diagnosisReport,
-            @V("statistics") String statistics,
-            @V("executionPlan") String executionPlan
-    );
+    @UserMessage("{{formattedPrompt}}")
+    String performDeepReasoning(@V("formattedPrompt") String formattedPrompt);
 }

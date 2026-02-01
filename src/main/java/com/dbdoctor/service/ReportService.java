@@ -2,6 +2,7 @@ package com.dbdoctor.service;
 
 import com.dbdoctor.common.enums.SeverityLevel;
 import com.dbdoctor.entity.SlowQueryTemplate;
+import com.dbdoctor.repository.SlowQuerySampleRepository;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,6 +32,7 @@ import java.util.Optional;
 public class ReportService {
 
     private final SlowQueryTemplateRepository templateRepository;
+    private final SlowQuerySampleRepository sampleRepository;
     private final AnalysisService analysisService;
 
     /**
@@ -197,18 +200,35 @@ public class ReportService {
             log.error("日期格式错误: {}", date);
             return Map.of(
                     "hours", new int[0],
-                    "counts", new int[0]
+                    "counts", new int[0],
+                    "date", date
             );
         }
 
-        // 查询当天数据（简单实现：24 小时统计）
-        // 注意：这是一个简化实现，实际可能需要使用更复杂的 SQL 聚合查询
+        // 初始化24小时数据
         int[] hours = new int[24];
         int[] counts = new int[24];
-
         for (int i = 0; i < 24; i++) {
             hours[i] = i;
-            counts[i] = 0; // TODO: 实现按小时统计的查询
+            counts[i] = 0;
+        }
+
+        // 查询数据库获取按小时统计的慢查询数量
+        try {
+            List<Object[]> hourlyStats = sampleRepository.countByHourRange(startDate, endDate);
+            log.info("查询到 {} 条小时统计数据", hourlyStats.size());
+
+            // 填充统计数据
+            for (Object[] stat : hourlyStats) {
+                int hour = ((Number) stat[0]).intValue();
+                long count = ((Number) stat[1]).longValue();
+                if (hour >= 0 && hour < 24) {
+                    counts[hour] = (int) count;
+                    log.debug("小时 {}: {} 条慢查询", hour, count);
+                }
+            }
+        } catch (Exception e) {
+            log.error("查询慢查询趋势失败: date={}", date, e);
         }
 
         return Map.of(

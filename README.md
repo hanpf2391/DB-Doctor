@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="frontend/public/logo.png" alt="DB-Doctor Logo" width="120" height="120" />
+
 **一款非侵入式的 MySQL 慢查询智能诊疗系统**
 
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)

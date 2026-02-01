@@ -116,4 +116,26 @@ public interface SlowQuerySampleRepository extends JpaRepository<SlowQuerySample
         WHERE s.sqlFingerprint = :fingerprint
         """)
     void deleteBySqlFingerprint(@Param("fingerprint") String sqlFingerprint);
+
+    /**
+     * 统计指定日期范围内每小时的慢查询数量
+     *
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @return 每小时的统计数量 [hour, count]
+     */
+    @Query("""
+        SELECT
+            HOUR(s.capturedAt) as hour,
+            COUNT(s) as count
+        FROM SlowQuerySample s
+        WHERE s.capturedAt >= :startTime
+          AND s.capturedAt < :endTime
+        GROUP BY HOUR(s.capturedAt)
+        ORDER BY hour
+        """)
+    List<Object[]> countByHourRange(
+        @Param("startTime") LocalDateTime startTime,
+        @Param("endTime") LocalDateTime endTime
+    );
 }

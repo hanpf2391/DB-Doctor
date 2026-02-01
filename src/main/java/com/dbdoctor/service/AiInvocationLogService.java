@@ -254,7 +254,58 @@ public class AiInvocationLogService {
      * @return 分析详情
      */
     public com.dbdoctor.model.AnalysisTraceDetail getAnalysisTraceDetail(String traceId) {
-        List<AiInvocationLog> logs = repository.findByTraceIdOrderByStartTimeAsc(traceId);
+        List<AiInvocationLog> allLogs = repository.findByTraceIdOrderByStartTimeAsc(traceId);
+
+        if (allLogs.isEmpty()) {
+            return null;
+        }
+
+        // 🔧 只返回最近一次分析的调用记录
+        // 策略：找到最后一次成功的编码专家或推理专家调用，只返回该时间前后的记录
+        LocalDateTime lastAnalysisTime = null;
+
+        // 从后往前找最后一次成功的推理专家或编码专家调用
+        for (int i = allLogs.size() - 1; i >= 0; i--) {
+            AiInvocationLog log = allLogs.get(i);
+            String agentName = log.getAgentName();
+            String status = log.getStatus();
+
+            if (("REASONING".equals(agentName) || "CODING".equals(agentName))
+                    && "SUCCESS".equals(status)) {
+                lastAnalysisTime = log.getStartTime();
+                break;
+            }
+        }
+
+        // 如果没找到推理专家或编码专家，使用最后一次成功的主治医生调用
+        if (lastAnalysisTime == null) {
+            for (int i = allLogs.size() - 1; i >= 0; i--) {
+                AiInvocationLog log = allLogs.get(i);
+                if ("SUCCESS".equals(log.getStatus())) {
+                    lastAnalysisTime = log.getStartTime();
+                    break;
+                }
+            }
+        }
+
+        // 如果还是没找到，使用最后一条记录的时间
+        if (lastAnalysisTime == null && !allLogs.isEmpty()) {
+            lastAnalysisTime = allLogs.get(allLogs.size() - 1).getStartTime();
+        }
+
+        LocalDateTime finalAnalysisTime = lastAnalysisTime;
+
+        // 只保留该时间前后5分钟内的记录（一次完整的分析通常在几分钟内完成）
+        List<AiInvocationLog> logs = allLogs.stream()
+                .filter(log -> {
+                    LocalDateTime logTime = log.getStartTime();
+                    long diffMinutes = Math.abs(java.time.Duration.between(logTime, finalAnalysisTime).toMinutes());
+                    return diffMinutes <= 5; // 前后5分钟内
+                })
+                .toList();
+
+        log.info("[分析跟踪] traceId={}, 总记录数={}, 过滤后记录数={}, 最后分析时间={}",
+                traceId, allLogs.size(), logs.size(), finalAnalysisTime);
 
         if (logs.isEmpty()) {
             return null;

@@ -263,18 +263,18 @@ public class MultiAgentCoordinator {
             AiContextHolder.setAgentName(AgentName.REASONING.getCode());
             AiContextHolder.setTraceId(context.getSqlFingerprint());
 
-            // 🆕 构造 Prompt（用于 Token 估算）
-            String prompt = String.format(
-                "诊断报告：%s\n\n统计信息：%s\n\n执行计划：%s",
+            // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
+            String formattedPrompt = String.format(
+                "请基于主治医生的诊断报告，进行深度推理分析：\n\n" +
+                "【主治医生诊断报告】\n%s\n\n" +
+                "【统计信息】\n%s\n\n" +
+                "【执行计划】\n%s\n\n" +
+                "请按照你的分析框架，从症状分析→根因推理→优化路径推导，给出完整的推理报告。",
                 diagnosisReport, statisticsJson, executionPlanJson
             );
-            AiContextHolder.setPrompt(prompt);
+            AiContextHolder.setPrompt(formattedPrompt);
 
-            String result = reasoningAgent.performDeepReasoning(
-                diagnosisReport,
-                statisticsJson,
-                executionPlanJson
-            );
+            String result = reasoningAgent.performDeepReasoning(formattedPrompt);
 
             // 🆕 设置 Response（用于 Token 统计）
             AiContextHolder.setResponse(result);
@@ -362,18 +362,21 @@ public class MultiAgentCoordinator {
             AiContextHolder.setAgentName(AgentName.CODING.getCode());
             AiContextHolder.setTraceId(context.getSqlFingerprint());
 
-            // 🆕 构造 Prompt（用于 Token 估算）
-            String prompt = String.format(
-                "原始 SQL：%s\n\n问题描述：%s\n\n执行计划：%s",
+            // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
+            String formattedPrompt = String.format(
+                "请基于问题描述，生成 SQL 优化方案：\n\n" +
+                "【原始 SQL】\n%s\n\n" +
+                "【问题分析】\n%s\n\n" +
+                "【执行计划】\n%s\n\n" +
+                "请按照你的优化原则，生成完整的优化方案，包括：\n" +
+                "1. 优化后的 SQL（保持语义等价）\n" +
+                "2. 推荐的索引设计\n" +
+                "3. 实施建议和回滚方案",
                 context.getSampleSql(), problemDesc, executionPlanJson
             );
-            AiContextHolder.setPrompt(prompt);
+            AiContextHolder.setPrompt(formattedPrompt);
 
-            String result = codingAgent.generateOptimizationCode(
-                context.getSampleSql(),
-                problemDesc,
-                executionPlanJson
-            );
+            String result = codingAgent.generateOptimizationCode(formattedPrompt);
 
             // 🆕 设置 Response（用于 Token 统计）
             AiContextHolder.setResponse(result);

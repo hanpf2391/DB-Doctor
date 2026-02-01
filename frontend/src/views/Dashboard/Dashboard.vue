@@ -1,12 +1,21 @@
 <template>
   <div class="dashboard-page">
-    <!-- 今日概览卡片 -->
+    <!-- 统计卡片 -->
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
         <el-card class="stat-card" shadow="hover">
-          <el-statistic title="今日分析总数" :value="stats.todayTotal">
+          <el-statistic title="模板总数" :value="stats.templateTotal">
             <template #suffix>
-              <el-icon><TrendCharts /></el-icon>
+              <el-icon><Collection /></el-icon>
+            </template>
+          </el-statistic>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card class="stat-card primary" shadow="hover">
+          <el-statistic title="SQL 样本总数" :value="stats.sqlTotal">
+            <template #suffix>
+              <el-icon><Document /></el-icon>
             </template>
           </el-statistic>
         </el-card>
@@ -16,15 +25,6 @@
           <el-statistic title="高危 SQL 数" :value="stats.highRiskCount">
             <template #suffix>
               <el-icon><Warning /></el-icon>
-            </template>
-          </el-statistic>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card class="stat-card warning" shadow="hover">
-          <el-statistic title="平均耗时" :value="stats.avgQueryTime" :precision="3">
-            <template #suffix>
-              秒
             </template>
           </el-statistic>
         </el-card>
@@ -48,14 +48,33 @@
           <template #header>
             <div class="card-header">
               <span class="card-title">慢查询趋势（24小时）</span>
-              <el-date-picker
-                v-model="trendDate"
-                type="date"
-                placeholder="选择日期"
-                format="YYYY-MM-DD"
-                value-format="YYYY-MM-DD"
-                @change="loadTrend"
-              />
+              <div class="date-picker-wrapper">
+                <el-button-group size="small">
+                  <el-button
+                    :type="isToday(trendDate) ? 'primary' : ''"
+                    @click="selectDate('today')"
+                  >
+                    今日
+                  </el-button>
+                  <el-button
+                    :type="isYesterday(trendDate) ? 'primary' : ''"
+                    @click="selectDate('yesterday')"
+                  >
+                    昨日
+                  </el-button>
+                </el-button-group>
+                <el-date-picker
+                  v-model="trendDate"
+                  type="date"
+                  placeholder="选择日期"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
+                  @change="loadTrend"
+                  size="small"
+                  clearable
+                  class="custom-date-picker"
+                />
+              </div>
             </div>
           </template>
           <v-chart
@@ -113,7 +132,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { TrendCharts, Warning, Clock, View, Setting, Refresh } from '@element-plus/icons-vue'
+import { Collection, Document, TrendCharts, Warning, Clock, View, Setting, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import type { EChartsOption } from 'echarts'
 import { getTodayOverview, getTrend, getTopSlow } from '@/api/dashboard'
@@ -124,6 +143,8 @@ const router = useRouter()
 
 // 数据
 const stats = ref<DashboardStats>({
+  templateTotal: 0,
+  sqlTotal: 0,
   todayTotal: 0,
   highRiskCount: 0,
   avgQueryTime: 0,
@@ -328,6 +349,39 @@ function handleChartClick(params: any) {
   }
 }
 
+/**
+ * 快捷选择日期
+ */
+function selectDate(type: 'today' | 'yesterday') {
+  const today = new Date()
+  const date = new Date()
+
+  if (type === 'yesterday') {
+    date.setDate(date.getDate() - 1)
+  }
+
+  trendDate.value = date.toISOString().split('T')[0]
+  loadTrend()
+}
+
+/**
+ * 判断是否是今天
+ */
+function isToday(dateStr: string): boolean {
+  const today = new Date().toISOString().split('T')[0]
+  return dateStr === today
+}
+
+/**
+ * 判断是否是昨天
+ */
+function isYesterday(dateStr: string): boolean {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = yesterday.toISOString().split('T')[0]
+  return dateStr === yesterdayStr
+}
+
 onMounted(() => {
   refreshAll()
 })
@@ -375,6 +429,10 @@ onMounted(() => {
   color: #409eff;
 }
 
+.stat-card.primary :deep(.el-statistic__content) {
+  color: #67c23a;
+}
+
 .charts-row {
   margin-bottom: 20px;
 }
@@ -392,6 +450,16 @@ onMounted(() => {
 .card-title {
   font-weight: bold;
   font-size: 16px;
+}
+
+.date-picker-wrapper {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.custom-date-picker {
+  width: 140px;
 }
 
 .actions-card {
