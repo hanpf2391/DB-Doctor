@@ -141,6 +141,10 @@ import { formatSeconds } from '@/utils/format'
 
 const router = useRouter()
 
+// 加载状态
+const loading = ref(false)
+const errorMessage = ref('')
+
 // 数据
 const stats = ref<DashboardStats>({
   templateTotal: 0,
@@ -383,6 +387,7 @@ function isYesterday(dateStr: string): boolean {
 }
 
 onMounted(() => {
+  console.log('仪表盘已加载')
   refreshAll()
 })
 </script>

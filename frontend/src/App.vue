@@ -5,7 +5,7 @@
       <div class="logo">
         <img src="@/assets/logo.png" alt="DB-Doctor Logo" class="logo-img" />
         <h2>DB-Doctor</h2>
-        <p>v2.3.2</p>
+        <p>v2.4.0</p>
       </div>
       <el-menu
         :default-active="activeMenu"
@@ -40,6 +40,9 @@
 
     <!-- 系统监控浮窗 -->
     <SystemMonitor />
+
+    <!-- 首次启动引导 -->
+    <StartupGuide />
   </el-container>
 </template>
 
@@ -47,6 +50,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import SystemMonitor from '@/components/SystemMonitor.vue'
+import StartupGuide from '@/components/StartupGuide.vue'
 
 const route = useRoute()
 const activeMenu = computed(() => route.path)

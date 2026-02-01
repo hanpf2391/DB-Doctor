@@ -6,6 +6,28 @@
       <p>实时监控 AI 调用情况、Token 消耗和性能指标</p>
     </div>
 
+    <!-- 快捷操作 -->
+    <el-card class="actions-card" shadow="never">
+      <el-space :size="15" wrap>
+        <el-button type="primary" @click="goToAnalysisTraces">
+          <el-icon><View /></el-icon>
+          查看分析详情
+        </el-button>
+        <el-button type="warning" @click="goToCostAnalysis">
+          <el-icon><Wallet /></el-icon>
+          成本分析
+        </el-button>
+        <el-button type="success" @click="refreshData" :loading="loading">
+          <el-icon><Refresh /></el-icon>
+          刷新数据
+        </el-button>
+        <el-button type="info" @click="exportData">
+          <el-icon><Download /></el-icon>
+          导出数据
+        </el-button>
+      </el-space>
+    </el-card>
+
     <!-- 顶部统计卡片 -->
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
@@ -105,31 +127,6 @@
         </el-card>
       </el-col>
     </el-row>
-
-    <!-- 快捷操作 -->
-    <el-card class="actions-card" shadow="never">
-      <template #header>
-        <span class="card-title">快捷操作</span>
-      </template>
-      <el-space :size="20">
-        <el-button type="primary" @click="goToAnalysisTraces">
-          <el-icon><View /></el-icon>
-          查看分析详情
-        </el-button>
-        <el-button type="warning" @click="goToCostAnalysis">
-          <el-icon><Wallet /></el-icon>
-          成本分析
-        </el-button>
-        <el-button type="success" @click="refreshData">
-          <el-icon><Refresh /></el-icon>
-          刷新数据
-        </el-button>
-        <el-button type="info" @click="exportData">
-          <el-icon><Download /></el-icon>
-          导出数据
-        </el-button>
-      </el-space>
-    </el-card>
   </div>
 </template>
 
@@ -506,6 +503,11 @@ onMounted(() => {
 
 .actions-card {
   margin-bottom: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
+}
+
+.actions-card :deep(.el-card__body) {
+  padding: 15px 20px;
 }
 
 .unit {

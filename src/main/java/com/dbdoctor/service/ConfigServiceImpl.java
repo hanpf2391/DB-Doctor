@@ -55,7 +55,7 @@ public class ConfigServiceImpl implements ConfigService {
 
     @Override
     public Map<String, String> getConfigsByCategory(String category) {
-        List<SystemConfig> configs = configRepo.findByConfigCategory(category);
+        List<SystemConfig> configs = configRepo.findByConfigGroup(category);
 
         return configs.stream()
                 .collect(Collectors.toMap(
@@ -67,12 +67,12 @@ public class ConfigServiceImpl implements ConfigService {
     @Override
     @Transactional
     public void saveConfig(String key, String value) {
-        SystemConfig config = configRepo.findById(key)
+        SystemConfig config = configRepo.findByConfigKey(key)
                 .orElse(new SystemConfig());
 
         config.setConfigKey(key);
         config.setConfigValue(value);
-        config.setConfigCategory(extractCategory(key));
+        config.setConfigGroup(extractCategory(key));
 
         configRepo.save(config);
         log.info("配置已保存: {} = {}", key, maskSensitiveValue(value));
@@ -99,13 +99,15 @@ public class ConfigServiceImpl implements ConfigService {
     @Override
     @Transactional
     public void deleteConfig(String key) {
-        configRepo.deleteById(key);
-        log.info("配置已删除: {}", key);
+        configRepo.findByConfigKey(key).ifPresent(config -> {
+            configRepo.delete(config);
+            log.info("配置已删除: {}", key);
+        });
     }
 
     @Override
     public boolean exists(String key) {
-        return configRepo.existsById(key);
+        return configRepo.findByConfigKey(key).isPresent();
     }
 
     @Override

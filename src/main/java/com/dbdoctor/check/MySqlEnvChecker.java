@@ -3,8 +3,6 @@ package com.dbdoctor.check;
 import com.dbdoctor.config.DbDoctorProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -15,26 +13,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * MySQL 环境检查器
- * 启动时检查目标 MySQL 的慢查询配置是否符合 DB-Doctor 运行要求
+ * 检查目标 MySQL 的慢查询配置是否符合 DB-Doctor 运行要求
  *
  * 核心功能：
- * 1. 启动时执行完整检查（生成详细报告）
- * 2. 运行时提供快速检查（轻量级，供监控线程调用）
- * 3. 动态感知环境变化，自动恢复监控
+ * 1. 完整环境检查（生成详细报告，供用户手动触发）
+ * 2. 快速环境检查（轻量级，用于快速判断环境状态）
  *
  * 使用方式：
- * - 在 application.yml 中配置 db-doctor.env-check.enabled=true
- * - 配置检查失败后的处理策略（fail-on-error）
- * - 启动项目即可自动检查环境
+ * - 用户在「目标数据库」配置页面点击"检查环境配置"按钮
+ * - 或通过 API: POST /api/environment/check
  *
  * @author DB-Doctor
- * @version 2.0.0
+ * @version 3.0.0
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = "db-doctor.env-check", name = "enabled", havingValue = "true")
-public class MySqlEnvChecker implements ApplicationRunner {
+public class MySqlEnvChecker {
 
     private final DbDoctorProperties properties;
     private final JdbcTemplate jdbcTemplate;
@@ -46,10 +42,15 @@ public class MySqlEnvChecker implements ApplicationRunner {
      */
     private final AtomicBoolean isHealthy = new AtomicBoolean(false);
 
-    @Override
-    public void run(ApplicationArguments args) {
+    /**
+     * 执行完整的环境检查（生成详细报告）
+     * 供用户在前端手动触发时调用
+     *
+     * @return true-环境检查通过，false-环境检查未通过
+     */
+    public boolean checkFully() {
         log.info("========================================");
-        log.info("🚀 开始 MySQL 环境准入检测...");
+        log.info("🚀 开始 MySQL 环境检测...");
         log.info("========================================");
 
         // 清空上次检查结果
@@ -64,8 +65,22 @@ public class MySqlEnvChecker implements ApplicationRunner {
         // 生成诊断报告
         generateReport();
 
-        // 根据检查结果决定是否阻止启动
-        handleCheckResult();
+        // 返回检查结果
+        boolean hasFail = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.FAIL);
+        boolean hasError = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.ERROR);
+        boolean passed = !hasFail && !hasError;
+
+        if (passed) {
+            log.info("========================================");
+            log.info("✅ 环境检查通过，DB-Doctor 可以正常工作！");
+            log.info("========================================");
+        } else {
+            log.warn("========================================");
+            log.warn("⚠️  环境检查未通过，请根据上述建议进行配置");
+            log.warn("========================================");
+        }
+
+        return passed;
     }
 
     /**
@@ -218,41 +233,6 @@ public class MySqlEnvChecker implements ApplicationRunner {
             passCount, warnCount, failCount, errorCount);
         log.info("========================================");
         log.info("");
-    }
-
-    /**
-     * 根据检查结果决定是否阻止启动
-     */
-    private void handleCheckResult() {
-        boolean hasFail = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.FAIL);
-        boolean hasError = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.ERROR);
-
-        if (hasFail || hasError) {
-            boolean failOnError = properties.getEnvCheck().getFailOnError();
-
-            if (failOnError) {
-                log.error("========================================");
-                log.error("❌ 环境检查未通过，应用启动终止！");
-                log.error("========================================");
-                log.error("");
-                log.error("💡 快速修复指南：");
-                log.error("1. 手动执行上述修复命令（需要 SUPER 权限）");
-                log.error("2. 或在配置文件中设置 db-doctor.env-check.fail-on-error=false");
-                log.error("3. 或配置 db-doctor.env-check.auto-fix=true（尝试自动修复）");
-                log.error("");
-
-                throw new RuntimeException("MySQL 环境检查未通过，应用启动终止");
-            } else {
-                log.warn("========================================");
-                log.warn("⚠️  环境检查未通过，但应用继续启动（fail-on-error=false）");
-                log.warn("⚠️  慢查询监控功能可能无法正常工作！");
-                log.warn("========================================");
-            }
-        } else {
-            log.info("========================================");
-            log.info("✅ 环境检查通过，DB-Doctor 可以正常工作！");
-            log.info("========================================");
-        }
     }
 
     /**

@@ -175,13 +175,14 @@ public class SlowLogTableMonitor {
         }
 
         // 2. 环境感知逻辑（动态门禁）
-        if (envChecker != null) {
-            boolean isHealthy = envChecker.checkQuickly();
-            if (!isHealthy) {
-                log.debug("环境检查未通过，跳过本次检查");
-                return;
-            }
-        }
+        // ⚠️ 已禁用自动环境检查，改为用户手动触发
+        // if (envChecker != null) {
+        //     boolean isHealthy = envChecker.checkQuickly();
+        //     if (!isHealthy) {
+        //         log.debug("环境检查未通过，跳过本次检查");
+        //         return;
+        //     }
+        // }
 
         // 3. 计算当前应该使用的轮询间隔
         long interval = calculateAdaptiveInterval();
@@ -259,24 +260,24 @@ public class SlowLogTableMonitor {
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         // 2. 环境感知逻辑（动态门禁）
-        // 如果启用了环境检查，先检查环境是否健康
-        if (envChecker != null) {
-            boolean isHealthy = envChecker.checkQuickly();
-
-            if (!isHealthy) {
-                log.warn("========================================");
-                log.warn("🛑 [环境待就绪] 慢查询监控暂停中");
-                log.warn("📋 {}", envChecker.getDiagnosticInfo());
-                log.warn("💡 提示：请在目标数据库执行以下修复语句，程序会自动感知并恢复监控");
-                log.warn("   SET GLOBAL slow_query_log = 'ON';");
-                log.warn("   SET GLOBAL log_output = 'TABLE';");
-                log.warn("========================================");
-                return; // 环境不健康，跳过本次扫描
-            }
-
-            // 环境健康，继续正常扫描
-            log.debug("✅ 环境检查通过，开始扫描慢查询日志");
-        }
+        // ⚠️ 已禁用自动环境检查，改为用户手动触发
+        // if (envChecker != null) {
+        //     boolean isHealthy = envChecker.checkQuickly();
+        //
+        //     if (!isHealthy) {
+        //         log.warn("========================================");
+        //         log.warn("🛑 [环境待就绪] 慢查询监控暂停中");
+        //         log.warn("📋 {}", envChecker.getDiagnosticInfo());
+        //         log.warn("💡 提示：请在目标数据库执行以下修复语句，程序会自动感知并恢复监控");
+        //         log.warn("   SET GLOBAL slow_query_log = 'ON';");
+        //         log.warn("   SET GLOBAL log_output = 'TABLE';");
+        //         log.warn("========================================");
+        //         return; // 环境不健康，跳过本次扫描
+        //     }
+        //
+        //     // 环境健康，继续正常扫描
+        //     log.debug("✅ 环境检查通过，开始扫描慢查询日志");
+        // }
 
         // 3. 执行慢查询日志扫描
         try {

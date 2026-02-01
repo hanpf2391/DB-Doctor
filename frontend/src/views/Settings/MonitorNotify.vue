@@ -1,122 +1,134 @@
 <template>
   <div class="monitor-notify-config">
+    <el-alert
+      title="通知配置说明"
+      type="info"
+      :closable="false"
+      style="margin-bottom: 20px"
+    >
+      <p>配置邮件、钉钉、企业微信等通知方式，接收慢查询告警。</p>
+      <p>配置保存后立即生效（热加载），无需重启服务。</p>
+    </el-alert>
+
     <el-tabs v-model="activeTab" type="border-card">
-      <!-- 监控策略 -->
-      <el-tab-pane label="监控策略" name="monitor">
-        <el-form :model="monitorConfig" label-width="150px">
-          <el-form-item label="慢查询阈值（秒）">
-            <el-input-number
-              v-model="monitorConfig.slowLogThreshold"
-              :min="0.1"
-              :max="60"
-              :step="0.1"
-              :precision="1"
-            />
-            <span class="form-tip">查询耗时超过此值将被记录为慢查询</span>
-          </el-form-item>
-
-          <el-form-item label="采集批次大小">
-            <el-input-number
-              v-model="monitorConfig.batchSize"
-              :min="10"
-              :max="1000"
-              :step="10"
-            />
-            <span class="form-tip">每次从数据库读取的最大记录数</span>
-          </el-form-item>
-
-          <el-form-item label="自适应轮询">
+      <!-- 邮件通知 -->
+      <el-tab-pane label="邮件通知" name="email">
+        <el-form label-width="150px">
+          <el-form-item label="启用邮件通知">
             <el-switch
-              v-model="monitorConfig.adaptivePolling"
+              v-model="form.emailEnabled"
               active-text="启用"
               inactive-text="禁用"
             />
-            <span class="form-tip">根据慢查询负载自动调整轮询间隔</span>
           </el-form-item>
+
+          <template v-if="form.emailEnabled">
+            <el-form-item label="SMTP 服务器">
+              <el-input
+                v-model="form.emailSmtpHost"
+                placeholder="smtp.gmail.com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="SMTP 端口">
+              <el-input-number
+                v-model="form.emailSmtpPort"
+                :min="1"
+                :max="65535"
+              />
+              <span class="form-tip">常用端口: 25, 465, 587</span>
+            </el-form-item>
+
+            <el-form-item label="发件人邮箱">
+              <el-input
+                v-model="form.emailUsername"
+                placeholder="your-email@gmail.com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="邮箱密码/授权码">
+              <el-input
+                v-model="form.emailPassword"
+                type="password"
+                show-password
+                placeholder="请输入邮箱密码或授权码"
+              />
+              <span class="form-tip">将加密存储</span>
+            </el-form-item>
+
+            <el-form-item label="收件人列表">
+              <el-input
+                v-model="form.emailToListStr"
+                type="textarea"
+                :rows="3"
+                placeholder='["admin@example.com", "dba@example.com"]'
+              />
+              <span class="form-tip">JSON 数组格式</span>
+            </el-form-item>
+          </template>
         </el-form>
       </el-tab-pane>
 
-      <!-- 通知策略 -->
-      <el-tab-pane label="通知策略" name="notify">
-        <el-form :model="notifyConfig" label-width="150px">
-          <el-form-item label="通知模式">
-            <el-radio-group v-model="notifyConfig.mode">
-              <el-radio label="batch">定期汇总</el-radio>
-              <el-radio label="realtime">实时告警</el-radio>
-            </el-radio-group>
-          </el-form-item>
-
-          <el-form-item label="汇总间隔" v-if="notifyConfig.mode === 'batch'">
-            <el-select v-model="notifyConfig.batchInterval">
-              <el-option label="每 30 分钟" value="0,30 * * * * *" />
-              <el-option label="每 1 小时" value="0 0 * * * * *" />
-              <el-option label="每 2 小时" value="0 0 */2 * * * *" />
-              <el-option label="每天 9 点" value="0 0 9 * * *" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="严重程度阈值">
-            <el-slider
-              v-model="notifyConfig.severityThreshold"
-              :min="1"
-              :max="10"
-              :step="0.5"
-              show-input
+      <!-- 钉钉通知 -->
+      <el-tab-pane label="钉钉通知" name="dingding">
+        <el-form label-width="150px">
+          <el-form-item label="启用钉钉通知">
+            <el-switch
+              v-model="form.dingdingEnabled"
+              active-text="启用"
+              inactive-text="禁用"
             />
           </el-form-item>
 
-          <el-form-item label="接收邮箱">
-            <el-input
-              v-model="notifyConfig.emails"
-              type="textarea"
-              :rows="3"
-              placeholder="dba@example.com,dev-team@example.com"
-            />
-          </el-form-item>
+          <template v-if="form.dingdingEnabled">
+            <el-form-item label="Webhook URL">
+              <el-input
+                v-model="form.dingdingWebhook"
+                type="textarea"
+                :rows="3"
+                placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."
+              />
+              <span class="form-tip">钉钉群机器人的 Webhook 地址</span>
+            </el-form-item>
+          </template>
         </el-form>
       </el-tab-pane>
 
-      <!-- SMTP 配置 -->
-      <el-tab-pane label="SMTP 配置" name="smtp">
-        <el-form :model="smtpConfig" label-width="150px">
-          <el-form-item label="SMTP 服务器">
-            <el-input v-model="smtpConfig.host" placeholder="smtp.qq.com" />
-          </el-form-item>
-
-          <el-form-item label="端口">
-            <el-input-number
-              v-model="smtpConfig.port"
-              :min="1"
-              :max="65535"
+      <!-- 企微通知 -->
+      <el-tab-pane label="企微通知" name="wecom">
+        <el-form label-width="150px">
+          <el-form-item label="启用企微通知">
+            <el-switch
+              v-model="form.wecomEnabled"
+              active-text="启用"
+              inactive-text="禁用"
             />
           </el-form-item>
 
-          <el-form-item label="用户名">
-            <el-input v-model="smtpConfig.username" placeholder="noreply@qq.com" />
-          </el-form-item>
-
-          <el-form-item label="密码">
-            <el-input
-              v-model="smtpConfig.password"
-              type="password"
-              show-password
-              placeholder="请输入 SMTP 密码或授权码"
-            />
-          </el-form-item>
+          <template v-if="form.wecomEnabled">
+            <el-form-item label="Webhook URL">
+              <el-input
+                v-model="form.wecomWebhook"
+                type="textarea"
+                :rows="3"
+                placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+              />
+              <span class="form-tip">企业微信机器人的 Webhook 地址</span>
+            </el-form-item>
+          </template>
         </el-form>
       </el-tab-pane>
     </el-tabs>
 
     <!-- 操作按钮 -->
     <div class="actions">
-      <el-button @click="sendTestEmail" :loading="sending">
-        <el-icon><Message /></el-icon>
-        发送测试邮件
-      </el-button>
       <el-button type="primary" @click="saveConfig" :loading="saving">
         <el-icon><Check /></el-icon>
-        保存并应用
+        保存配置（热加载）
       </el-button>
+      <el-button @click="resetForm">重置</el-button>
     </div>
   </div>
 </template>
@@ -124,97 +136,92 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useConfigStore } from '@/stores/config'
-import { sendTestEmail as sendTestEmailApi } from '@/api/config'
+import { Check } from '@element-plus/icons-vue'
+import { getConfigsByGroup, batchUpdateConfigs } from '@/api/config'
 
-const configStore = useConfigStore()
-const activeTab = ref('monitor')
-const sending = ref(false)
+const activeTab = ref('email')
 const saving = ref(false)
 
-const monitorConfig = reactive({
-  slowLogThreshold: 2.0,
-  batchSize: 100,
-  adaptivePolling: true
+// 表单数据
+const form = reactive({
+  emailEnabled: false,
+  emailSmtpHost: 'smtp.gmail.com',
+  emailSmtpPort: 587,
+  emailUsername: '',
+  emailPassword: '',
+  emailToListStr: '[]',
+  dingdingEnabled: false,
+  dingdingWebhook: '',
+  wecomEnabled: false,
+  wecomWebhook: ''
 })
 
-const notifyConfig = reactive({
-  mode: 'batch',
-  batchInterval: '0 0 * * * *',
-  severityThreshold: 3.0,
-  emails: 'dba@example.com'
-})
-
-const smtpConfig = reactive({
-  host: 'smtp.qq.com',
-  port: 587,
-  username: 'noreply@qq.com',
-  password: ''
-})
-
+/**
+ * 加载配置
+ */
 async function loadConfig() {
   try {
-    await configStore.loadConfig()
-    const monitor = configStore.config.monitor
-    const notify = configStore.config.notify
+    const configs = await getConfigsByGroup('notification')
 
-    if (monitor) Object.assign(monitorConfig, monitor)
-    if (notify) {
-      Object.assign(notifyConfig, notify.mode || {}, notify.smtp || {})
+    if (configs) {
+      Object.assign(form, {
+        emailEnabled: configs['notification.email.enabled'] === 'true',
+        emailSmtpHost: configs['notification.email.smtp_host'] || 'smtp.gmail.com',
+        emailSmtpPort: parseInt(configs['notification.email.smtp_port'] || '587'),
+        emailUsername: configs['notification.email.username'] || '',
+        emailPassword: configs['notification.email.password'] || '',
+        emailToListStr: configs['notification.email.to_list'] || '[]',
+        dingdingEnabled: configs['notification.dingding.enabled'] === 'true',
+        dingdingWebhook: configs['notification.dingding.webhook'] || '',
+        wecomEnabled: configs['notification.wecom.enabled'] === 'true',
+        wecomWebhook: configs['notification.wecom.webhook'] || ''
+      })
     }
   } catch (error) {
-    ElMessage.error('加载配置失败')
+    console.error('加载通知配置失败:', error)
   }
 }
 
-async function sendTestEmail() {
-  sending.value = true
-  try {
-    // 解析邮箱列表
-    const emails = notifyConfig.emails.split(',').map(e => e.trim()).filter(e => e)
-
-    if (emails.length === 0) {
-      ElMessage.warning('请先配置接收邮箱')
-      return
-    }
-
-    await sendTestEmailApi({
-      to: emails,
-      subject: 'DB-Doctor 测试邮件'
-    })
-
-    ElMessage.success('测试邮件已发送，请检查收件箱')
-  } catch (error: any) {
-    ElMessage.error(error.message || '发送失败')
-  } finally {
-    sending.value = false
-  }
-}
-
+/**
+ * 保存配置
+ */
 async function saveConfig() {
   saving.value = true
   try {
     const configs: Record<string, string> = {
-      'monitor.slow-log-threshold': monitorConfig.slowLogThreshold.toString(),
-      'monitor.batch-size': monitorConfig.batchSize.toString(),
-      'monitor.adaptive-polling': monitorConfig.adaptivePolling.toString(),
-      'notify.mode': notifyConfig.mode,
-      'notify.batch-interval-cron': notifyConfig.batchInterval,
-      'notify.severity-threshold': notifyConfig.severityThreshold.toString(),
-      'notify.emails': notifyConfig.emails,
-      'notify.smtp.host': smtpConfig.host,
-      'notify.smtp.port': smtpConfig.port.toString(),
-      'notify.smtp.username': smtpConfig.username,
-      'notify.smtp.password': smtpConfig.password
+      'notification.email.enabled': form.emailEnabled.toString(),
+      'notification.email.smtp_host': form.emailSmtpHost,
+      'notification.email.smtp_port': form.emailSmtpPort.toString(),
+      'notification.email.username': form.emailUsername,
+      'notification.email.password': form.emailPassword,
+      'notification.email.to_list': form.emailToListStr,
+      'notification.dingding.enabled': form.dingdingEnabled.toString(),
+      'notification.dingding.webhook': form.dingdingWebhook,
+      'notification.wecom.enabled': form.wecomEnabled.toString(),
+      'notification.wecom.webhook': form.wecomWebhook
     }
 
-    await configStore.saveConfigs('NOTIFY', configs)
-    ElMessage.success('配置保存成功')
+    await batchUpdateConfigs({
+      configs,
+      updatedBy: 'admin'
+    })
+
+    ElMessage.success({
+      message: '✅ 通知配置保存成功，已自动热加载到系统！',
+      duration: 3000
+    })
   } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
+    ElMessage.error(error.message || '保存配置失败')
   } finally {
     saving.value = false
   }
+}
+
+/**
+ * 重置表单
+ */
+function resetForm() {
+  loadConfig()
 }
 
 onMounted(() => {
@@ -224,18 +231,26 @@ onMounted(() => {
 
 <style scoped>
 .monitor-notify-config {
-  max-width: 700px;
+  max-width: 800px;
 }
 
 .form-tip {
-  margin-left: 10px;
   font-size: 12px;
   color: #909399;
+  margin-top: 5px;
+  display: block;
+  line-height: 1.5;
+}
+
+:deep(.el-alert p) {
+  margin: 5px 0;
 }
 
 .actions {
   margin-top: 30px;
   padding-top: 20px;
   border-top: 1px solid #dcdfe6;
+  display: flex;
+  gap: 10px;
 }
 </style>

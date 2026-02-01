@@ -2,7 +2,7 @@ import request from './index'
 import type { ConfigData, SaveConfigResponse } from './types'
 
 /**
- * 配置相关 API
+ * 系统配置相关 API (v2.4.0)
  */
 
 /**
@@ -10,69 +10,122 @@ import type { ConfigData, SaveConfigResponse } from './types'
  */
 export function getAllConfigs(): Promise<ConfigData> {
   return request({
-    url: '/config/all',
+    url: '/system/config',
     method: 'get'
   })
 }
 
 /**
- * 根据分类获取配置
+ * 根据分组获取配置
  */
-export function getConfigsByCategory(category: string): Promise<Record<string, string>> {
+export function getConfigsByGroup(group: string): Promise<Record<string, string>> {
   return request({
-    url: `/config/category/${category}`,
+    url: `/system/config/group/${group}`,
     method: 'get'
   })
 }
 
 /**
- * 保存配置并触发热重载
+ * 获取单个配置值
  */
-export function saveConfig(
-  category: string,
-  configs: Record<string, string>
-): Promise<SaveConfigResponse> {
+export function getConfigValue(configKey: string): Promise<string> {
   return request({
-    url: '/config/save',
+    url: `/system/config/value/${configKey}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 更新单个配置
+ */
+export function updateConfig(params: {
+  configKey: string
+  configValue: string
+  updatedBy?: string
+}): Promise<SaveConfigResponse> {
+  return request({
+    url: '/system/config/update',
     method: 'post',
-    data: {
-      category,
-      configs
-    }
+    data: params
+  })
+}
+
+/**
+ * 批量更新配置
+ */
+export function batchUpdateConfigs(params: {
+  configs: Record<string, string>
+  updatedBy?: string
+}): Promise<SaveConfigResponse> {
+  return request({
+    url: '/system/config/batch-update',
+    method: 'post',
+    data: params
   })
 }
 
 /**
  * 测试数据库连接
  */
-export function testDbConnection(params: {
-  host: string
-  port: number
+export function testDatabaseConnection(params: {
+  url: string
   username: string
   password: string
-  database?: string
 }) {
   return request({
-    url: '/config/test/db',
+    url: '/system/config/test-database',
     method: 'post',
     data: params
   })
 }
 
 /**
- * 测试 AI 连通性
+ * 检查配置完整性
  */
-export function testAiConnection(params: {
-  agentType: string
-  provider: string
-  baseUrl: string
-  modelName: string
-  apiKey?: string
-}) {
+export function checkGroupCompleteness(group: string) {
   return request({
-    url: '/config/test/ai',
-    method: 'post',
-    data: params
+    url: `/system/config/check-completeness/${group}`,
+    method: 'get'
+  })
+}
+
+/**
+ * 检查所有配置完整性
+ */
+export function checkAllCompleteness() {
+  return request({
+    url: '/system/config/check-completeness',
+    method: 'get'
+  })
+}
+
+/**
+ * 获取数据库配置（脱敏）
+ */
+export function getDatabaseConfig() {
+  return request({
+    url: '/system/config/database',
+    method: 'get'
+  })
+}
+
+/**
+ * 获取监听的数据库列表
+ */
+export function getMonitoredDatabases() {
+  return request({
+    url: '/system/config/monitored-databases',
+    method: 'get'
+  })
+}
+
+/**
+ * 获取系统初始化状态
+ */
+export function getInitializationStatus() {
+  return request({
+    url: '/system/config/initialization-status',
+    method: 'get'
   })
 }
 
