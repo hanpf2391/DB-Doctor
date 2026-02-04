@@ -1,27 +1,29 @@
 package com.dbdoctor.check;
 
-import com.dbdoctor.config.DbDoctorProperties;
+import com.dbdoctor.model.EnvCheckReport;
+import com.dbdoctor.model.EnvCheckReport.CheckItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MySQL 环境检查器
- * 检查目标 MySQL 的慢查询配置是否符合 DB-Doctor 运行要求
+ * MySQL 环境检查器（增强版）
  *
  * 核心功能：
- * 1. 完整环境检查（生成详细报告，供用户手动触发）
- * 2. 快速环境检查（轻量级，用于快速判断环境状态）
+ * 1. 连接测试（基础连接验证）
+ * 2. 完整环境检查（4项必选检查）
+ * 3. 详细错误报告（含修复命令）
  *
- * 使用方式：
- * - 用户在「目标数据库」配置页面点击"检查环境配置"按钮
- * - 或通过 API: POST /api/environment/check
+ * 使用场景：
+ * - 前端"测试连接"按钮
+ * - 配置保存前的验证
+ * - 应用启动时的环境检查
  *
  * @author DB-Doctor
  * @version 3.0.0
@@ -29,216 +31,338 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "db-doctor.env-check", name = "enabled", havingValue = "true")
 public class MySqlEnvChecker {
 
-    private final DbDoctorProperties properties;
-    private final JdbcTemplate jdbcTemplate;
-
-    private final List<CheckResult> checkResults = new ArrayList<>();
-
     /**
-     * 缓存环境健康状态（避免每次查询数据库）
-     */
-    private final AtomicBoolean isHealthy = new AtomicBoolean(false);
-
-    /**
-     * 执行完整的环境检查（生成详细报告）
-     * 供用户在前端手动触发时调用
+     * 执行完整的环境检查（含连接测试）
      *
-     * @return true-环境检查通过，false-环境检查未通过
+     * @param url      JDBC URL
+     * @param username 用户名
+     * @param password 密码
+     * @return 环境检查报告
      */
-    public boolean checkFully() {
+    public EnvCheckReport checkFully(String url, String username, String password) {
         log.info("========================================");
-        log.info("🚀 开始 MySQL 环境检测...");
+        log.info("🔍 开始完整环境检查...");
         log.info("========================================");
+        log.info("URL: {}", url);
+        log.info("Username: {}", username);
 
-        // 清空上次检查结果
-        checkResults.clear();
+        EnvCheckReport report = EnvCheckReport.builder()
+            .items(new ArrayList<>())
+            .build();
 
-        // 执行各项检查
-        checkSlowQueryLog();
-        checkLogOutput();
-        checkLongQueryTime();
-        checkSlowLogTableAccess();
+        try {
+            // 1. 基础连接测试
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("1️⃣  测试数据库连接...");
+            JdbcTemplate testJdbcTemplate = testConnection(url, username, password, report);
+            report.setConnectionSuccess(true);
+            log.info("✅ 数据库连接成功");
 
-        // 生成诊断报告
-        generateReport();
+            // 1.5 查询所有可用数据库
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("1️⃣.5️⃣  查询可用数据库列表...");
+            List<String> databases = queryAvailableDatabases(testJdbcTemplate);
+            report.setAvailableDatabases(databases);
+            log.info("✅ 已加载 {} 个数据库", databases.size());
 
-        // 返回检查结果
-        boolean hasFail = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.FAIL);
-        boolean hasError = checkResults.stream().anyMatch(r -> r.status() == CheckStatus.ERROR);
-        boolean passed = !hasFail && !hasError;
+            // 2. 检查 slow_query_log
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("2️⃣  检查 slow_query_log...");
+            checkSlowQueryLog(testJdbcTemplate, report);
 
-        if (passed) {
+            // 3. 检查 log_output
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("3️⃣  检查 log_output...");
+            checkLogOutput(testJdbcTemplate, report);
+
+            // 4. 检查 long_query_time
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("4️⃣  检查 long_query_time...");
+            checkLongQueryTime(testJdbcTemplate, report);
+
+            // 5. 检查 slow_log 表访问权限
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("5️⃣  检查 mysql.slow_log 访问权限...");
+            checkSlowLogTableAccess(testJdbcTemplate, report);
+
+            // 6. 生成总结
+            generateSummary(report);
+
             log.info("========================================");
-            log.info("✅ 环境检查通过，DB-Doctor 可以正常工作！");
+            log.info("📋 环境检查完成");
             log.info("========================================");
-        } else {
-            log.warn("========================================");
-            log.warn("⚠️  环境检查未通过，请根据上述建议进行配置");
-            log.warn("========================================");
+
+            return report;
+
+        } catch (Exception e) {
+            log.error("❌ 环境检查失败", e);
+            report.setConnectionSuccess(false);
+            report.setStatus(EnvCheckReport.CheckStatus.CRITICAL);
+            report.setSummary("环境检查失败：" + e.getMessage());
+            return report;
         }
-
-        return passed;
     }
 
     /**
-     * 检查 slow_query_log 是否开启
+     * 测试数据库连接
      */
-    private void checkSlowQueryLog() {
+    private JdbcTemplate testConnection(String url, String username, String password, EnvCheckReport report) {
         try {
-            String value = queryVariable("slow_query_log");
+            // 创建临时数据源测试连接
+            com.zaxxer.hikari.HikariDataSource dataSource = new com.zaxxer.hikari.HikariDataSource();
+            dataSource.setJdbcUrl(url);
+            dataSource.setUsername(username);
+            dataSource.setPassword(password);
+            dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+            dataSource.setConnectionTimeout(10000); // 10秒超时
+
+            // 测试连接
+            dataSource.getConnection().close();
+
+            report.setConnectionSuccess(true);
+            return new JdbcTemplate(dataSource);
+
+        } catch (SQLException e) {
+            report.setConnectionSuccess(false);
+            report.setConnectionError(parseConnectionError(e));
+            report.setStatus(EnvCheckReport.CheckStatus.CRITICAL);
+            report.setSummary("数据库连接失败：" + parseConnectionError(e));
+            throw new RuntimeException("数据库连接失败", e);
+        }
+    }
+
+    /**
+     * 解析连接错误（用户友好的错误信息）
+     */
+    private String parseConnectionError(SQLException e) {
+        String message = e.getMessage();
+        log.debug("原始 SQL 异常: {}", message);
+
+        // 常见错误码
+        if (message.contains("Access denied") || message.contains("1045")) {
+            return "用户名或密码错误，请检查连接配置";
+        }
+
+        if (message.contains("Unknown database") || message.contains("1049")) {
+            return "数据库不存在，请检查数据库名称";
+        }
+
+        if (message.contains("Communications link failure") || message.contains("08S01")) {
+            return "无法连接到数据库服务器，请检查：\n" +
+                   "1. 数据库服务是否启动\n" +
+                   "2. 主机地址和端口是否正确\n" +
+                   "3. 防火墙是否阻止连接";
+        }
+
+        if (message.contains("Connection timed out") || message.contains("SQLTimeoutException")) {
+            return "连接超时，请检查网络连接和数据库状态";
+        }
+
+        if (message.contains("Invalid connection string")) {
+            return "JDBC URL 格式错误，正确格式：jdbc:mysql://host:port/database";
+        }
+
+        // 默认错误
+        return "连接失败: " + message;
+    }
+
+    /**
+     * 检查 slow_query_log
+     */
+    private void checkSlowQueryLog(JdbcTemplate jdbcTemplate, EnvCheckReport report) {
+        try {
+            String value = queryVariable(jdbcTemplate, "slow_query_log");
             boolean isEnabled = "ON".equalsIgnoreCase(value);
 
+            CheckItem item = CheckItem.builder()
+                .name(CheckItem.Constants.SLOW_QUERY_LOG)
+                .required(true)
+                .passed(isEnabled)
+                .currentValue(value)
+                .build();
+
             if (isEnabled) {
-                addCheckResult("slow_query_log", CheckStatus.PASS, "已开启",
-                    "慢查询日志已启用，可以捕获慢查询");
+                item.setErrorMessage("慢查询日志已启用");
+                log.info("✅ slow_query_log = ON");
             } else {
-                addCheckResult("slow_query_log", CheckStatus.FAIL, "未开启",
-                    "慢查询日志未启用！DB-Doctor 无法捕获慢查询。\n修复命令：SET GLOBAL slow_query_log = 'ON';");
+                item.setErrorMessage("慢查询日志未启用，DB-Doctor 无法捕获慢查询");
+                item.setFixCommand("SET GLOBAL slow_query_log = 'ON';");
+                item.setErrorCode(CheckItem.Constants.ERROR_CODE_NOT_ENABLED);
+                item.setHelpUrl("https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html");
+                log.warn("❌ slow_query_log = {}", value);
             }
+
+            report.addItem(item);
+
         } catch (Exception e) {
-            addCheckResult("slow_query_log", CheckStatus.FAIL, "检查失败",
-                "无法查询 slow_query_log 状态：" + e.getMessage());
+            log.error("检查 slow_query_log 失败", e);
+            report.addItem(CheckItem.builder()
+                .name(CheckItem.Constants.SLOW_QUERY_LOG)
+                .required(true)
+                .passed(false)
+                .errorMessage("检查失败：" + e.getMessage())
+                .build());
         }
     }
 
     /**
-     * 检查 log_output 是否包含 TABLE
+     * 检查 log_output
      */
-    private void checkLogOutput() {
+    private void checkLogOutput(JdbcTemplate jdbcTemplate, EnvCheckReport report) {
         try {
-            String value = queryVariable("log_output");
+            String value = queryVariable(jdbcTemplate, "log_output");
             boolean containsTable = value != null && value.contains("TABLE");
 
+            CheckItem item = CheckItem.builder()
+                .name(CheckItem.Constants.LOG_OUTPUT)
+                .required(true)
+                .passed(containsTable)
+                .currentValue(value)
+                .build();
+
             if (containsTable) {
-                addCheckResult("log_output", CheckStatus.PASS, value,
-                    "日志输出方式支持 TABLE，可以从 mysql.slow_log 表读取");
+                item.setErrorMessage("日志输出方式支持 TABLE");
+                log.info("✅ log_output = {} (包含 TABLE)", value);
             } else {
-                addCheckResult("log_output", CheckStatus.FAIL, value,
-                    "log_output 不包含 TABLE！DB-Doctor 需要从 mysql.slow_log 表读取数据。\n" +
-                    "修复命令：SET GLOBAL log_output = 'TABLE';\n" +
-                    "注意：如果使用云数据库（RDS），请前往控制台参数设置页面修改。");
+                item.setErrorMessage("log_output 不包含 TABLE，无法从 mysql.slow_log 表读取数据");
+                item.setFixCommand("SET GLOBAL log_output = 'TABLE';");
+                item.setErrorCode(CheckItem.Constants.ERROR_CODE_NO_TABLE);
+                item.setHelpUrl("https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html");
+                log.warn("❌ log_output = {} (不包含 TABLE)", value);
             }
+
+            report.addItem(item);
+
         } catch (Exception e) {
-            addCheckResult("log_output", CheckStatus.FAIL, "检查失败",
-                "无法查询 log_output 状态：" + e.getMessage());
+            log.error("检查 log_output 失败", e);
+            report.addItem(CheckItem.builder()
+                .name(CheckItem.Constants.LOG_OUTPUT)
+                .required(true)
+                .passed(false)
+                .errorMessage("检查失败：" + e.getMessage())
+                .build());
         }
     }
 
     /**
-     * 检查 long_query_time 是否合理
+     * 检查 long_query_time
      */
-    private void checkLongQueryTime() {
+    private void checkLongQueryTime(JdbcTemplate jdbcTemplate, EnvCheckReport report) {
         try {
-            String value = queryVariable("long_query_time");
+            String value = queryVariable(jdbcTemplate, "long_query_time");
             double threshold = Double.parseDouble(value);
 
-            // 警告阈值：超过 10 秒认为不合理
-            if (threshold > 10.0) {
-                addCheckResult("long_query_time", CheckStatus.WARN, value + " 秒",
-                    "慢查询阈值过高（" + threshold + "秒），可能捕获不到有价值的慢查询。\n" +
-                    "建议设置为 1-2 秒。\n" +
-                    "修复命令：SET GLOBAL long_query_time = 1.0;");
-            } else if (threshold < 0.1) {
-                addCheckResult("long_query_time", CheckStatus.WARN, value + " 秒",
-                    "慢查询阈值过低（" + threshold + "秒），可能产生大量日志。\n" +
-                    "建议设置为 1-2 秒。\n" +
-                    "修复命令：SET GLOBAL long_query_time = 1.0;");
+            CheckItem.CheckItemBuilder itemBuilder = CheckItem.builder()
+                .name(CheckItem.Constants.LONG_QUERY_TIME)
+                .required(true)
+                .currentValue(value + " 秒");
+
+            // 合理范围：0.1 - 10 秒
+            if (threshold >= 0.1 && threshold <= 10.0) {
+                itemBuilder.passed(true)
+                    .errorMessage("慢查询阈值设置合理");
+                log.info("✅ long_query_time = {} 秒 (合理)", value);
             } else {
-                addCheckResult("long_query_time", CheckStatus.PASS, value + " 秒",
-                    "慢查询阈值设置合理");
+                itemBuilder.passed(false)
+                    .errorMessage(String.format("慢查询阈值不合理（%.2f秒），建议设置为 1-2 秒", threshold))
+                    .fixCommand("SET GLOBAL long_query_time = 1.0;")
+                    .errorCode(CheckItem.Constants.ERROR_CODE_THRESHOLD);
+                log.warn("⚠️  long_query_time = {} 秒 (不合理)", value);
             }
+
+            report.addItem(itemBuilder.build());
+
         } catch (Exception e) {
-            addCheckResult("long_query_time", CheckStatus.FAIL, "检查失败",
-                "无法查询 long_query_time 状态：" + e.getMessage());
+            log.error("检查 long_query_time 失败", e);
+            report.addItem(CheckItem.builder()
+                .name(CheckItem.Constants.LONG_QUERY_TIME)
+                .required(true)
+                .passed(false)
+                .errorMessage("检查失败：" + e.getMessage())
+                .build());
         }
     }
 
     /**
-     * 检查是否具有读取 mysql.slow_log 表的权限
+     * 检查 slow_log 表访问权限
      */
-    private void checkSlowLogTableAccess() {
+    private void checkSlowLogTableAccess(JdbcTemplate jdbcTemplate, EnvCheckReport report) {
         try {
-            // 尝试查询慢查询日志表
+            // 尝试查询表是否存在
             Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'slow_log'",
                 Integer.class);
 
-            if (count != null && count > 0) {
-                // 表存在，尝试读取
-                jdbcTemplate.queryForMap("SELECT * FROM mysql.slow_log LIMIT 1");
-                addCheckResult("mysql.slow_log 访问权限", CheckStatus.PASS, "有权限",
-                    "可以读取 mysql.slow_log 表");
-            } else {
-                addCheckResult("mysql.slow_log 访问权限", CheckStatus.WARN, "表不存在",
-                    "mysql.slow_log 表不存在或无法访问\n" +
-                    "可能原因：\n" +
-                    "1. MySQL 版本不支持表模式慢查询日志\n" +
-                    "2. log_output 未设置为 TABLE");
+            if (count == null || count == 0) {
+                // 表不存在
+                report.addItem(CheckItem.builder()
+                    .name(CheckItem.Constants.SLOW_LOG_ACCESS)
+                    .required(true)
+                    .passed(false)
+                    .currentValue("表不存在")
+                    .errorMessage("mysql.slow_log 表不存在，可能是 log_output 未设置为 TABLE")
+                    .fixCommand("SET GLOBAL log_output = 'TABLE';")
+                    .errorCode(CheckItem.Constants.ERROR_CODE_NO_PERMISSION)
+                    .build());
+                log.warn("❌ mysql.slow_log 表不存在");
+                return;
             }
-        } catch (Exception e) {
-            addCheckResult("mysql.slow_log 访问权限", CheckStatus.FAIL, "无权限",
-                "无法读取 mysql.slow_log 表：" + e.getMessage() + "\n" +
-                "可能原因：\n" +
-                "1. 当前数据库用户没有 SELECT 权限\n" +
-                "2. log_output 未设置为 TABLE\n" +
-                "解决方案：\n" +
-                "1. 授予 SELECT 权限：GRANT SELECT ON mysql.slow_log TO 'your_user'@'your_host';\n" +
-                "2. 设置 log_output = 'TABLE'");
+
+            // 表存在，尝试读取
+            jdbcTemplate.queryForMap("SELECT * FROM mysql.slow_log LIMIT 1");
+
+            report.addItem(CheckItem.builder()
+                .name(CheckItem.Constants.SLOW_LOG_ACCESS)
+                .required(true)
+                .passed(true)
+                .currentValue("有权限")
+                .errorMessage("可以读取 mysql.slow_log 表")
+                .build());
+            log.info("✅ mysql.slow_log 访问权限正常");
+
+        } catch (DataAccessException e) {
+            log.error("检查 mysql.slow_log 访问权限失败", e);
+            report.addItem(CheckItem.builder()
+                .name(CheckItem.Constants.SLOW_LOG_ACCESS)
+                .required(true)
+                .passed(false)
+                .currentValue("无权限")
+                .errorMessage("无法读取 mysql.slow_log 表：" + e.getMessage())
+                .fixCommand("GRANT SELECT ON mysql.slow_log TO 'your_user'@'your_host';")
+                .errorCode(CheckItem.Constants.ERROR_CODE_NO_PERMISSION)
+                .build());
         }
     }
 
     /**
-     * 生成诊断报告
+     * 生成总结信息
      */
-    private void generateReport() {
-        log.info("");
-        log.info("========================================");
-        log.info("📋 环境检查报告");
-        log.info("========================================");
-
-        int passCount = 0;
-        int warnCount = 0;
-        int failCount = 0;
-        int errorCount = 0;
-
-        for (CheckResult result : checkResults) {
-            switch (result.status()) {
-                case PASS -> {
-                    log.info("✅ PASS | {} | {}", result.item(), result.value());
-                    passCount++;
-                }
-                case WARN -> {
-                    log.warn("⚠️  WARN | {} | {}", result.item(), result.value());
-                    log.warn("   建议：{}", result.suggestion());
-                    warnCount++;
-                }
-                case FAIL -> {
-                    log.error("❌ FAIL | {} | {}", result.item(), result.value());
-                    log.error("   建议：{}", result.suggestion());
-                    failCount++;
-                }
-                case ERROR -> {
-                    log.error("🔥 ERROR | {} | {}", result.item(), result.value());
-                    log.error("   错误：{}", result.suggestion());
-                    errorCount++;
-                }
-            }
+    private void generateSummary(EnvCheckReport report) {
+        if (!report.isOverallPassed()) {
+            report.setStatus(EnvCheckReport.CheckStatus.CRITICAL);
+            report.setSummary("环境检查未通过，请修复以下问题后重试");
+            return;
         }
 
-        log.info("========================================");
-        log.info("检查结果：通过 {}，警告 {}，失败 {}，错误 {}",
-            passCount, warnCount, failCount, errorCount);
-        log.info("========================================");
-        log.info("");
+        // 检查是否有警告项（通过但有建议）
+        boolean hasWarnings = report.getItems().stream()
+            .anyMatch(item -> !item.isPassed() && !item.isRequired());
+
+        if (hasWarnings) {
+            report.setStatus(EnvCheckReport.CheckStatus.FAILED);
+            report.setSummary("环境检查通过，但有一些建议优化项");
+        } else {
+            report.setStatus(EnvCheckReport.CheckStatus.PASSED);
+            report.setSummary("环境检查全部通过，可以正常使用");
+        }
     }
 
     /**
      * 查询 MySQL 系统变量
      */
-    private String queryVariable(String varName) {
+    private String queryVariable(JdbcTemplate jdbcTemplate, String varName) {
         return jdbcTemplate.queryForObject(
             "SHOW VARIABLES LIKE ?",
             (rs, rowNum) -> rs.getString("Value"),
@@ -246,117 +370,19 @@ public class MySqlEnvChecker {
     }
 
     /**
-     * 添加检查结果
+     * 查询所有可用数据库
      */
-    private void addCheckResult(String item, CheckStatus status, String value, String suggestion) {
-        checkResults.add(new CheckResult(item, status, value, suggestion));
-    }
-
-    // ========================================
-    // 运行时快速检查方法（供监控线程调用）
-    // ========================================
-
-    /**
-     * 快速检查环境是否健康（轻量级）
-     * 供 SlowLogTableMonitor 在每次轮询前调用
-     *
-     * @return true-环境健康可以监控，false-环境不健康跳过本次监控
-     */
-    public boolean checkQuickly() {
+    private List<String> queryAvailableDatabases(JdbcTemplate jdbcTemplate) {
         try {
-            // 只检查最核心的两个指标（轻量级查询）
-            String slowQueryLog = queryVariable("slow_query_log");
-            String logOutput = queryVariable("log_output");
-
-            boolean isSlowLogOn = "ON".equalsIgnoreCase(slowQueryLog);
-            boolean isTableMode = logOutput != null && logOutput.contains("TABLE");
-
-            boolean healthy = isSlowLogOn && isTableMode;
-
-            // 更新缓存
-            boolean oldValue = isHealthy.getAndSet(healthy);
-
-            // 如果状态发生变化，打印日志
-            if (oldValue != healthy) {
-                if (healthy) {
-                    log.info("========================================");
-                    log.info("🎉 环境已恢复健康！慢查询监控自动激活");
-                    log.info("========================================");
-                } else {
-                    log.warn("========================================");
-                    log.warn("⚠️  环境状态变化：从不健康转为健康，或从健康转为不健康");
-                    log.warn("⚠️  slow_query_log: {}", slowQueryLog);
-                    log.warn("⚠️  log_output: {}", logOutput);
-                    log.warn("========================================");
-                }
-            }
-
-            return healthy;
-
+            List<String> databases = jdbcTemplate.queryForList(
+                "SHOW DATABASES",
+                String.class
+            );
+            log.debug("查询到 {} 个数据库", databases.size());
+            return databases;
         } catch (Exception e) {
-            log.debug("快速检查环境失败: {}", e.getMessage());
-            isHealthy.set(false);
-            return false;
+            log.error("查询数据库列表失败", e);
+            return new ArrayList<>();
         }
     }
-
-    /**
-     * 获取当前环境健康状态（缓存值）
-     */
-    public boolean isHealthy() {
-        return isHealthy.get();
-    }
-
-    /**
-     * 获取环境诊断信息（用于日志输出）
-     *
-     * @return 诊断信息字符串
-     */
-    public String getDiagnosticInfo() {
-        try {
-            StringBuilder sb = new StringBuilder();
-            sb.append("环境诊断: ");
-
-            String slowQueryLog = queryVariable("slow_query_log");
-            String logOutput = queryVariable("log_output");
-
-            if (!"ON".equalsIgnoreCase(slowQueryLog)) {
-                sb.append("slow_query_log=").append(slowQueryLog).append(" (未开启)");
-            }
-
-            if (logOutput == null || !logOutput.contains("TABLE")) {
-                if (sb.length() > 5) sb.append(" | ");
-                sb.append("log_output=").append(logOutput).append(" (未包含TABLE)");
-            }
-
-            if (sb.length() == 5) {
-                return "环境健康";
-            }
-
-            return sb.toString();
-
-        } catch (Exception e) {
-            return "无法获取环境信息: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 检查状态枚举
-     */
-    private enum CheckStatus {
-        PASS,   // 通过
-        WARN,   // 警告
-        FAIL,   // 失败
-        ERROR   // 错误
-    }
-
-    /**
-     * 检查结果记录
-     */
-    private record CheckResult(
-        String item,          // 检查项
-        CheckStatus status,   // 状态
-        String value,         // 当前值
-        String suggestion     // 建议
-    ) {}
 }

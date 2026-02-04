@@ -206,13 +206,14 @@ public class SystemConfigController {
     public Result<Map<String, String>> getDatabaseConfig() {
         Map<String, String> config = configService.getDatabaseConfig();
 
-        // 脱敏处理
+        // 脱敏处理：密码完全不返回明文
         if (config.containsKey("password")) {
             String password = config.get("password");
-            if (password != null && password.length() > 4) {
-                config.put("password", password.substring(0, 2) + "****" + password.substring(password.length() - 2));
-            } else if (password != null) {
+            if (password != null && !password.isEmpty()) {
+                // 不返回任何明文，只显示占位符
                 config.put("password", "****");
+            } else {
+                config.remove("password");
             }
         }
 

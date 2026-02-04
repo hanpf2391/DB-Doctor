@@ -1,7 +1,8 @@
 package com.dbdoctor.controller;
 
-import com.dbdoctor.check.MySqlEnvChecker;
 import com.dbdoctor.common.Result;
+import com.dbdoctor.model.EnvCheckReport;
+import com.dbdoctor.service.SystemConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -11,11 +12,10 @@ import java.util.Map;
 /**
  * 环境检查 Controller
  *
- * <p>提供手动触发环境检查的 API</p>
+ * <p>提供测试连接和环境检查的 API</p>
  *
  * @author DB-Doctor
- * @version 2.4.0
- * @since 2.4.0
+ * @version 3.0.0
  */
 @Slf4j
 @RestController
@@ -23,70 +23,91 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EnvironmentCheckController {
 
-    private final MySqlEnvChecker envChecker;
+    private final com.dbdoctor.check.MySqlEnvChecker envChecker;
+    private final SystemConfigService configService;
 
     /**
-     * 手动触发环境检查
+     * 测试数据库连接（含完整环境检查）
      *
-     * @return 检查结果
+     * 前端传递配置参数进行测试
+     *
+     * @param config 配置参数
+     * @return 环境检查报告
      */
-    @PostMapping("/check")
-    public Result<Map<String, Object>> checkEnvironment() {
-        log.info("[环境检查] 用户手动触发完整环境检查");
+    @PostMapping("/test-connection")
+    public Result<EnvCheckReport> testConnection(@RequestBody Map<String, String> config) {
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        log.info("🔍 [测试连接] 收到测试请求");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         try {
-            // 执行完整的环境检查（生成详细报告）
-            boolean isHealthy = envChecker.checkFully();
+            String url = config.get("url");
+            String username = config.get("username");
+            String password = config.get("password");
 
-            // 获取诊断信息
-            String diagnosticInfo = envChecker.getDiagnosticInfo();
+            if (url == null || url.trim().isEmpty()) {
+                return Result.error("JDBC URL 不能为空");
+            }
+            if (username == null || username.trim().isEmpty()) {
+                return Result.error("用户名不能为空");
+            }
+            if (password == null || password.trim().isEmpty()) {
+                return Result.error("密码不能为空");
+            }
 
-            Map<String, Object> result = Map.of(
-                "success", isHealthy,
-                "message", isHealthy ? "环境检查通过" : "环境检查未通过，请根据建议进行配置",
-                "diagnosticInfo", diagnosticInfo,
-                "timestamp", System.currentTimeMillis()
-            );
+            // 执行完整的环境检查
+            EnvCheckReport report = envChecker.checkFully(url, username, password);
 
-            if (isHealthy) {
-                log.info("[环境检查] ✅ 检查通过");
-                return Result.success(result);
+            // 根据检查结果返回
+            if (report.isOverallPassed()) {
+                log.info("✅ [测试连接] 环境检查全部通过");
+                return Result.success(report);
             } else {
-                log.warn("[环境检查] ❌ 检查未通过");
-                return Result.<Map<String, Object>>error("环境配置需要优化");
+                log.warn("❌ [测试连接] 环境检查未通过");
+                return Result.error("环境检查未通过，请修复问题后重试", report);
             }
 
         } catch (Exception e) {
-            log.error("[环境检查] 检查失败", e);
-            return Result.error("环境检查失败: " + e.getMessage());
+            log.error("❌ [测试连接] 测试失败", e);
+            return Result.error("测试连接失败: " + e.getMessage());
         }
     }
 
     /**
-     * 快速检查（不修改配置）
+     * 使用当前 H2 中的配置进行环境检查
      *
-     * @return 检查结果
+     * @return 环境检查报告
      */
-    @GetMapping("/quick-check")
-    public Result<Map<String, Object>> quickCheck() {
-        log.info("[环境检查] 快速检查");
+    @PostMapping("/check-current")
+    public Result<EnvCheckReport> checkCurrentConfig() {
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        log.info("🔍 [环境检查] 检查当前配置");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         try {
-            boolean isHealthy = envChecker.checkQuickly();
-            String diagnosticInfo = envChecker.getDiagnosticInfo();
+            // 从 H2 读取配置
+            String url = configService.getDecryptedValue("database.url");
+            String username = configService.getDecryptedValue("database.username");
+            String password = configService.getDecryptedValue("database.password");
 
-            Map<String, Object> result = Map.of(
-                "success", isHealthy,
-                "message", isHealthy ? "环境健康" : "环境待优化",
-                "diagnosticInfo", diagnosticInfo,
-                "timestamp", System.currentTimeMillis()
-            );
+            if (url == null || url.trim().isEmpty()) {
+                return Result.error("H2 数据库中未找到数据库配置");
+            }
 
-            return Result.success(result);
+            // 执行环境检查
+            EnvCheckReport report = envChecker.checkFully(url, username, password);
+
+            if (report.isOverallPassed()) {
+                log.info("✅ [环境检查] 当前配置检查通过");
+                return Result.success(report);
+            } else {
+                log.warn("❌ [环境检查] 当前配置检查未通过");
+                return Result.error("环境检查未通过", report);
+            }
 
         } catch (Exception e) {
-            log.error("[环境检查] 快速检查失败", e);
-            return Result.error("快速检查失败: " + e.getMessage());
+            log.error("❌ [环境检查] 检查失败", e);
+            return Result.error("环境检查失败: " + e.getMessage());
         }
     }
 }

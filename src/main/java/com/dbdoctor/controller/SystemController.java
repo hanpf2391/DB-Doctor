@@ -1,16 +1,20 @@
 package com.dbdoctor.controller;
 
+import com.dbdoctor.config.DataSourceStatusHolder;
 import com.dbdoctor.repository.SlowQuerySampleRepository;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,6 +31,15 @@ public class SystemController {
 
     private final SlowQueryTemplateRepository templateRepository;
     private final SlowQuerySampleRepository sampleRepository;
+    private final DataSourceStatusHolder dataSourceStatusHolder;
+    private final com.dbdoctor.config.DynamicDataSourceManager dynamicDataSourceManager;
+
+    /**
+     * 目标 MySQL 数据源的 JdbcTemplate（动态委托）
+     * 使用 @Qualifier 明确指定使用 targetJdbcTemplate，而不是 H2 的 JdbcTemplate
+     */
+    @org.springframework.beans.factory.annotation.Qualifier("targetJdbcTemplate")
+    private final JdbcTemplate targetJdbcTemplate;
 
     @Value("${db-doctor.version:2.2.0}")
     private String version;
@@ -186,5 +199,69 @@ public class SystemController {
                         "aiServiceStatus", aiOnline ? "online" : "offline"
                 )
         );
+    }
+
+    /**
+     * 获取数据源连接状态
+     *
+     * @return 连接状态信息
+     */
+    @GetMapping("/datasource-status")
+    public Map<String, Object> getDataSourceStatus() {
+        log.info("查询数据源连接状态");
+
+        DataSourceStatusHolder.DataSourceStatusVO status = dataSourceStatusHolder.getStatus();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("connected", status.isConnected());
+        data.put("lastError", status.getLastError());
+        data.put("lastCheckTime", status.getLastCheckTime());
+        data.put("lastSuccessTime", status.getLastSuccessTime());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("code", 200);
+        result.put("message", "success");
+        result.put("data", data);
+
+        return result;
+    }
+
+    /**
+     * 获取当前连接的数据库列表
+     *
+     * @return 数据库列表
+     */
+    @GetMapping("/available-databases")
+    public Map<String, Object> getAvailableDatabases() {
+        log.info("查询可用数据库列表");
+
+        // 检查数据源是否已初始化
+        if (!dynamicDataSourceManager.isInitialized()) {
+            log.info("目标数据源未初始化，返回空数据库列表");
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("message", "数据源未初始化，请先配置数据库连接");
+            result.put("data", new ArrayList<>());
+            return result;
+        }
+
+        try {
+            // 使用目标数据源（MySQL）查询数据库列表
+            List<String> databases = targetJdbcTemplate.queryForList("SHOW DATABASES", String.class);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 200);
+            result.put("message", "success");
+            result.put("data", databases);
+
+            return result;
+        } catch (Exception e) {
+            log.error("查询数据库列表失败", e);
+            Map<String, Object> result = new HashMap<>();
+            result.put("code", 500);
+            result.put("message", "查询失败: " + e.getMessage());
+            result.put("data", new ArrayList<>());
+            return result;
+        }
     }
 }

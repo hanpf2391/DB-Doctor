@@ -1,5 +1,7 @@
 package com.dbdoctor.config;
 
+import com.dbdoctor.check.MySqlEnvChecker;
+import com.dbdoctor.model.EnvCheckReport;
 import com.dbdoctor.service.SystemConfigService;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <ul>
  *   <li>从 H2 数据库的 system_config 表读取目标数据库配置</li>
  *   <li>支持热更新：修改配置后立即生效，无需重启</li>
+ *   <li>热更新前进行环境检查，确保配置正确</li>
  *   <li>线程安全的动态数据源切换</li>
  * </ul>
  *
@@ -29,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DynamicDataSourceManager {
 
     private final SystemConfigService configService;
+    private final MySqlEnvChecker envChecker;
 
     /**
      * 动态数据源的原子引用（线程安全）
@@ -91,6 +95,7 @@ public class DynamicDataSourceManager {
             targetJdbcTemplate.set(jdbcTemplate);
 
             log.info("✅ [动态数据源] 目标数据源初始化成功");
+            log.info("   JdbcTemplate hashCode: {}", jdbcTemplate.hashCode());
             log.info("   URL: {}", url);
             log.info("   Username: {}", username);
 
@@ -124,13 +129,68 @@ public class DynamicDataSourceManager {
     /**
      * 热更新数据源（配置修改后调用）
      *
+     * 新增：热更新前进行环境检查，确保配置正确
+     *
      * @return 是否更新成功
      */
     public boolean reloadDataSource() {
-        log.info("🔄 [动态数据源] 收到热更新请求，开始重新加载数据源...");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        log.info("🔄 [动态数据源] 收到热更新请求");
+        log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // 记录旧的 JdbcTemplate hashCode
+        JdbcTemplate oldJdbcTemplate = targetJdbcTemplate.get();
+        if (oldJdbcTemplate != null) {
+            log.info("📌 [动态数据源] 旧 JdbcTemplate hashCode: {}", oldJdbcTemplate.hashCode());
+        } else {
+            log.info("📌 [动态数据源] 旧 JdbcTemplate: null（数据源未初始化）");
+        }
 
         try {
-            // 关闭旧数据源
+            // 1. 读取新配置
+            String url = configService.getDecryptedValue("database.url");
+            String username = configService.getDecryptedValue("database.username");
+            String password = configService.getDecryptedValue("database.password");
+
+            if (url == null || url.trim().isEmpty()) {
+                log.error("❌ [动态数据源] database.url 配置为空");
+                return false;
+            }
+
+            // 2. 进行环境检查（热更新前强制检查）
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            log.info("🔍 [动态数据源] 热更新前进行环境检查...");
+            log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+            EnvCheckReport report = envChecker.checkFully(url, username, password);
+
+            if (!report.isOverallPassed()) {
+                log.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                log.error("❌ [动态数据源] 环境检查未通过，拒绝热更新");
+                log.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+                // 打印未通过的检查项
+                if (report.getItems() != null) {
+                    report.getItems().stream()
+                        .filter(item -> !item.isPassed())
+                        .forEach(item -> {
+                            log.error("❌ {} = {}", item.getName(), item.getCurrentValue());
+                            log.error("   建议：{}", item.getErrorMessage());
+                            if (item.getFixCommand() != null) {
+                                log.error("   修复：{}", item.getFixCommand());
+                            }
+                        });
+                }
+
+                log.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                log.error("💡 [动态数据源] 请修复上述问题后重试");
+                log.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                return false;
+            }
+
+            log.info("✅ [动态数据源] 环境检查全部通过，继续热更新...");
+
+            // 3. 关闭旧数据源
             HikariDataSource oldDataSource = targetDataSource.get();
             if (oldDataSource != null && !oldDataSource.isClosed()) {
                 log.info("🔌 [动态数据源] 关闭旧数据源...");
@@ -138,11 +198,16 @@ public class DynamicDataSourceManager {
                 log.info("✅ [动态数据源] 旧数据源已关闭");
             }
 
-            // 重新初始化数据源
+            // 4. 重新初始化数据源
             JdbcTemplate newJdbcTemplate = initializeTargetDataSource();
 
             if (newJdbcTemplate != null) {
                 log.info("✅ [动态数据源] 数据源热更新成功！配置已生效");
+                log.info("📊 [动态数据源] JdbcTemplate 已更新:");
+                log.info("   旧 hashCode: {}", oldJdbcTemplate != null ? oldJdbcTemplate.hashCode() : "null");
+                log.info("   新 hashCode: {}", newJdbcTemplate.hashCode());
+                log.info("   是否同一实例: {}", (oldJdbcTemplate == newJdbcTemplate));
+                log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 return true;
             } else {
                 log.warn("⚠️  [动态数据源] 数据源热更新失败：新数据源初始化失败");
@@ -151,6 +216,7 @@ public class DynamicDataSourceManager {
 
         } catch (Exception e) {
             log.error("❌ [动态数据源] 数据源热更新失败", e);
+            log.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             return false;
         }
     }

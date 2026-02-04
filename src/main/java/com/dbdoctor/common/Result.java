@@ -106,6 +106,13 @@ public class Result<T> implements Serializable {
     }
 
     /**
+     * 失败响应（自定义消息，带数据）
+     */
+    public static <T> Result<T> error(String message, T data) {
+        return new Result<>(500, message, data);
+    }
+
+    /**
      * 判断是否成功
      */
     public boolean isSuccess() {

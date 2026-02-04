@@ -30,6 +30,16 @@ const router = createRouter({
           component: () => import('@/views/Settings/AiConfig.vue')
         },
         {
+          path: 'database-instances',
+          name: 'DatabaseInstances',
+          component: () => import('@/views/Settings/DatabaseInstances.vue')
+        },
+        {
+          path: 'ai-service-instances',
+          name: 'AiServiceInstances',
+          component: () => import('@/views/Settings/AiServiceInstances.vue')
+        },
+        {
           path: 'monitor-notify',
           name: 'MonitorNotify',
           component: () => import('@/views/Settings/MonitorNotify.vue')

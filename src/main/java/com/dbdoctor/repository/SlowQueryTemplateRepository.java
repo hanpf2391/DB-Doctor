@@ -122,6 +122,21 @@ public interface SlowQueryTemplateRepository extends JpaRepository<SlowQueryTemp
      */
     long countByNotificationStatus(NotificationStatus notificationStatus);
 
+    /**
+     * 查询时间窗口内等待通知的记录
+     * 用于批次批量通知
+     *
+     * @param notificationStatus 通知状态
+     * @param startTime 时间窗口开始
+     * @param endTime 时间窗口结束
+     * @return 时间窗口内等待通知的记录列表
+     */
+    List<SlowQueryTemplate> findByNotificationStatusAndLastSeenTimeBetween(
+        NotificationStatus notificationStatus,
+        LocalDateTime startTime,
+        LocalDateTime endTime
+    );
+
     // === 报表查询相关方法 ===
 
     /**

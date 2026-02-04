@@ -12,8 +12,16 @@
           <TargetDb />
         </el-tab-pane>
 
+        <el-tab-pane label="数据库实例管理" name="database-instances">
+          <DatabaseInstances />
+        </el-tab-pane>
+
         <el-tab-pane label="AI 大脑配置" name="ai">
           <AiConfig />
+        </el-tab-pane>
+
+        <el-tab-pane label="AI 服务实例管理" name="ai-service-instances">
+          <AiServiceInstances />
         </el-tab-pane>
 
         <el-tab-pane label="监控与通知" name="monitor-notify">
@@ -31,7 +39,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import TargetDb from './TargetDb.vue'
+import DatabaseInstances from './DatabaseInstances.vue'
 import AiConfig from './AiConfig.vue'
+import AiServiceInstances from './AiServiceInstances.vue'
 import MonitorNotify from './MonitorNotify.vue'
 import Maintenance from './Maintenance.vue'
 

@@ -7,6 +7,7 @@
       style="margin-bottom: 20px"
     >
       <p>DB-Doctor 使用 3 个 AI Agent 协作：主治医生、推理专家、编码专家。支持 OpenAI 和 Ollama 两种模式。</p>
+      <p><b>💡 新功能：</b>可以从预配置的 AI 服务实例中选择，或手动输入配置信息。</p>
       <p>配置保存后立即生效（热加载），无需重启服务。</p>
     </el-alert>
 
@@ -22,47 +23,18 @@
       </el-form-item>
 
       <template v-if="form.enabled">
-        <!-- AI 服务提供商 -->
-        <el-form-item label="AI 服务提供商">
-          <el-radio-group v-model="form.provider">
-            <el-radio label="ollama">Ollama (本地)</el-radio>
-            <el-radio label="openai">OpenAI</el-radio>
-          </el-radio-group>
-        </el-form-item>
-
-        <!-- Base URL -->
-        <el-form-item label="Base URL">
-          <el-input
-            v-model="form.baseUrl"
-            :placeholder="form.provider === 'ollama' ? 'http://localhost:11434' : 'https://api.openai.com/v1'"
-            clearable
-          />
-          <span class="form-tip">
-            {{ form.provider === 'ollama' ? 'Ollama 本地服务地址' : 'OpenAI API 地址' }}
-          </span>
-        </el-form-item>
-
-        <!-- API Key -->
-        <el-form-item label="API Key" v-if="form.provider === 'openai'">
-          <el-input
-            v-model="form.apiKey"
-            type="password"
-            show-password
-            placeholder="sk-..."
-            clearable
-          />
-          <span class="form-tip">OpenAI API 密钥，将加密存储</span>
-        </el-form-item>
-
-        <!-- 分割线 -->
-        <el-divider content-position="left">3 个 AI Agent 配置</el-divider>
+        <!-- 实例选择提示 -->
         <el-alert
-          title="提示"
-          type="info"
+          title="快速配置"
+          type="success"
           :closable="false"
           style="margin-bottom: 20px"
         >
-          DB-Doctor 使用 3 个 AI Agent 协作：主治医生、推理专家、编码专家。您可以为每个 Agent 配置不同的模型。
+          <p>您可以为每个 Agent 从预配置的 AI 服务实例中选择，或手动输入配置。</p>
+          <el-link type="primary" @click="goToInstanceManagement">
+            <el-icon><Plus /></el-icon>
+            管理 AI 服务实例
+          </el-link>
         </el-alert>
 
         <!-- 主治医生配置 -->
@@ -74,6 +46,36 @@
               <el-tag size="small" type="primary" style="margin-left: 10px;">慢查询诊断</el-tag>
             </div>
           </template>
+
+          <!-- 实例选择 -->
+          <el-form-item label="从实例中选择">
+            <el-select
+              v-model="selectedInstances.diagnosis"
+              placeholder="选择 AI 服务实例（可选）"
+              filterable
+              clearable
+              @change="handleDiagnosisInstanceChange"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="instance in availableInstances"
+                :key="instance.id"
+                :label="getInstanceLabel(instance)"
+                :value="instance.id"
+              >
+                <div class="instance-option">
+                  <span class="instance-name">{{ instance.instanceName }}</span>
+                  <el-tag v-if="instance.isDefault" size="small" type="warning">默认</el-tag>
+                  <el-tag size="small" :type="getProviderTagType(instance.provider)">
+                    {{ getProviderLabel(instance.provider) }}
+                  </el-tag>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+
+          <el-divider content-position="left">或手动配置</el-divider>
+
           <el-form-item label="模型名称">
             <el-input
               v-model="form.diagnosis.modelName"
@@ -104,6 +106,36 @@
               <el-tag size="small" type="success" style="margin-left: 10px;">深度推理</el-tag>
             </div>
           </template>
+
+          <!-- 实例选择 -->
+          <el-form-item label="从实例中选择">
+            <el-select
+              v-model="selectedInstances.reasoning"
+              placeholder="选择 AI 服务实例（可选）"
+              filterable
+              clearable
+              @change="handleReasoningInstanceChange"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="instance in availableInstances"
+                :key="instance.id"
+                :label="getInstanceLabel(instance)"
+                :value="instance.id"
+              >
+                <div class="instance-option">
+                  <span class="instance-name">{{ instance.instanceName }}</span>
+                  <el-tag v-if="instance.isDefault" size="small" type="warning">默认</el-tag>
+                  <el-tag size="small" :type="getProviderTagType(instance.provider)">
+                    {{ getProviderLabel(instance.provider) }}
+                  </el-tag>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+
+          <el-divider content-position="left">或手动配置</el-divider>
+
           <el-form-item label="模型名称">
             <el-input
               v-model="form.reasoning.modelName"
@@ -134,6 +166,36 @@
               <el-tag size="small" type="warning" style="margin-left: 10px;">SQL 优化</el-tag>
             </div>
           </template>
+
+          <!-- 实例选择 -->
+          <el-form-item label="从实例中选择">
+            <el-select
+              v-model="selectedInstances.coding"
+              placeholder="选择 AI 服务实例（可选）"
+              filterable
+              clearable
+              @change="handleCodingInstanceChange"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="instance in availableInstances"
+                :key="instance.id"
+                :label="getInstanceLabel(instance)"
+                :value="instance.id"
+              >
+                <div class="instance-option">
+                  <span class="instance-name">{{ instance.instanceName }}</span>
+                  <el-tag v-if="instance.isDefault" size="small" type="warning">默认</el-tag>
+                  <el-tag size="small" :type="getProviderTagType(instance.provider)">
+                    {{ getProviderLabel(instance.provider) }}
+                  </el-tag>
+                </div>
+              </el-option>
+            </el-select>
+          </el-form-item>
+
+          <el-divider content-position="left">或手动配置</el-divider>
+
           <el-form-item label="模型名称">
             <el-input
               v-model="form.coding.modelName"
@@ -180,11 +242,22 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Check, User, ChatDotRound, EditPen } from '@element-plus/icons-vue'
+import { Check, User, ChatDotRound, EditPen, Plus } from '@element-plus/icons-vue'
 import { getConfigsByGroup, batchUpdateConfigs } from '@/api/config'
+import { getAllAiServiceInstances, type AiServiceInstance } from '@/api/ai-service-instances'
 
+const router = useRouter()
 const saving = ref(false)
+
+// 可用的 AI 服务实例列表
+const availableInstances = ref<AiServiceInstance[]>([])
+const selectedInstances = reactive({
+  diagnosis: undefined as number | undefined,
+  reasoning: undefined as number | undefined,
+  coding: undefined as number | undefined
+})
 
 // 表单数据
 const form = reactive({
@@ -207,6 +280,101 @@ const form = reactive({
     temperature: 0.2
   }
 })
+
+/**
+ * 加载 AI 服务实例列表
+ */
+async function loadAiServiceInstances() {
+  try {
+    availableInstances.value = await getAllAiServiceInstances()
+  } catch (error: any) {
+    console.error('加载 AI 服务实例列表失败:', error)
+  }
+}
+
+/**
+ * 获取实例标签文本
+ */
+function getInstanceLabel(instance: AiServiceInstance) {
+  return `${instance.instanceName} (${instance.modelName})`
+}
+
+/**
+ * 获取提供商标签类型
+ */
+function getProviderTagType(provider: string) {
+  const map: Record<string, string> = {
+    openai: 'success',
+    ollama: 'primary',
+    deepseek: 'warning',
+    anthropic: '',
+    azure: 'info'
+  }
+  return map[provider] || ''
+}
+
+/**
+ * 获取提供商标签文本
+ */
+function getProviderLabel(provider: string) {
+  const map: Record<string, string> = {
+    openai: 'OpenAI',
+    ollama: 'Ollama',
+    deepseek: 'DeepSeek',
+    anthropic: 'Anthropic',
+    azure: 'Azure'
+  }
+  return map[provider] || provider
+}
+
+/**
+ * 跳转到实例管理页面
+ */
+function goToInstanceManagement() {
+  router.push('/settings/ai-service-instances')
+}
+
+/**
+ * 主治医生实例选择变化
+ */
+function handleDiagnosisInstanceChange(instanceId: number | undefined) {
+  if (!instanceId) return
+
+  const instance = availableInstances.value.find(i => i.id === instanceId)
+  if (instance) {
+    form.diagnosis.modelName = instance.modelName
+    form.diagnosis.temperature = instance.temperature || 0.1
+    ElMessage.info(`已加载实例 "${instance.instanceName}" 配置到主治医生`)
+  }
+}
+
+/**
+ * 推理专家实例选择变化
+ */
+function handleReasoningInstanceChange(instanceId: number | undefined) {
+  if (!instanceId) return
+
+  const instance = availableInstances.value.find(i => i.id === instanceId)
+  if (instance) {
+    form.reasoning.modelName = instance.modelName
+    form.reasoning.temperature = instance.temperature || 0.3
+    ElMessage.info(`已加载实例 "${instance.instanceName}" 配置到推理专家`)
+  }
+}
+
+/**
+ * 编码专家实例选择变化
+ */
+function handleCodingInstanceChange(instanceId: number | undefined) {
+  if (!instanceId) return
+
+  const instance = availableInstances.value.find(i => i.id === instanceId)
+  if (instance) {
+    form.coding.modelName = instance.modelName
+    form.coding.temperature = instance.temperature || 0.2
+    ElMessage.info(`已加载实例 "${instance.instanceName}" 配置到编码专家`)
+  }
+}
 
 /**
  * 加载配置
@@ -294,11 +462,15 @@ async function saveConfig() {
  * 重置表单
  */
 function resetForm() {
+  selectedInstances.diagnosis = undefined
+  selectedInstances.reasoning = undefined
+  selectedInstances.coding = undefined
   loadConfig()
 }
 
 onMounted(() => {
   loadConfig()
+  loadAiServiceInstances()
 })
 </script>
 
@@ -315,11 +487,26 @@ onMounted(() => {
   line-height: 1.5;
 }
 
+.instance-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.instance-name {
+  flex: 1;
+}
+
 :deep(.el-alert p) {
   margin: 5px 0;
 }
 
 :deep(.el-divider) {
-  margin: 30px 0 20px;
+  margin: 20px 0 15px;
+}
+
+:deep(.el-card__header) {
+  padding: 12px 16px;
 }
 </style>

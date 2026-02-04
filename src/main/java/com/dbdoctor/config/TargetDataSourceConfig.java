@@ -1,5 +1,6 @@
 package com.dbdoctor.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -124,7 +125,11 @@ public class TargetDataSourceConfig {
 
         @Override
         public java.util.List<Map<String, Object>> queryForList(String sql) {
-            return getLatestDelegate().queryForList(sql);
+            JdbcTemplate delegate = getLatestDelegate();
+            String dsType = delegate.getDataSource() instanceof HikariDataSource ? "HikariCP" : "Placeholder";
+            log.debug("🔍 [委托调用] queryForList(sql) -> delegate hashCode={}, dataSource={}",
+                delegate.hashCode(), dsType);
+            return delegate.queryForList(sql);
         }
 
         @Override
@@ -142,10 +147,28 @@ public class TargetDataSourceConfig {
          */
         private JdbcTemplate getLatestDelegate() {
             JdbcTemplate latest = dynamicDataSourceManager.getTargetJdbcTemplate();
+
+            // 详细的诊断日志
+            String currentDsType = currentDelegate.getDataSource() instanceof HikariDataSource ? "HikariCP" : "Placeholder";
+            String latestDsType = (latest != null && latest.getDataSource() instanceof HikariDataSource) ? "HikariCP" : "Placeholder";
+
+            log.debug("🔍 [委托检查] currentDelegate hashCode={}, dataSource={}",
+                currentDelegate.hashCode(), currentDsType);
+
+            if (latest != null) {
+                log.debug("🔍 [委托检查] latest hashCode={}, dataSource={}",
+                    latest.hashCode(), latestDsType);
+            } else {
+                log.debug("🔍 [委托检查] latest = null（数据源未初始化）");
+            }
+
             if (latest != null && latest != currentDelegate) {
-                log.debug("🔄 [动态委托] 检测到 JdbcTemplate 更新，切换到最新实例");
+                log.info("🔄 [动态委托] 检测到 JdbcTemplate 更新，切换到最新实例");
+                log.info("   旧实例: hashCode={}, dataSource={}", currentDelegate.hashCode(), currentDsType);
+                log.info("   新实例: hashCode={}, dataSource={}", latest.hashCode(), latestDsType);
                 currentDelegate = latest;
             }
+
             return currentDelegate;
         }
     }

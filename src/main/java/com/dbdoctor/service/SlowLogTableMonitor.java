@@ -1,6 +1,7 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.check.MySqlEnvChecker;
+import com.dbdoctor.config.DataSourceStatusHolder;
 import com.dbdoctor.config.SlowLogMonitorProperties;
 import com.dbdoctor.lifecycle.ShutdownManager;
 import com.dbdoctor.model.SlowQueryLog;
@@ -124,6 +125,18 @@ public class SlowLogTableMonitor {
     @Autowired(required = false)
     private MySqlEnvChecker envChecker;
 
+    /**
+     * 数据源状态持有者（用于记录连接状态）
+     */
+    @Autowired
+    private DataSourceStatusHolder dataSourceStatusHolder;
+
+    /**
+     * 动态数据源管理器（用于检查数据源是否已初始化）
+     */
+    @Autowired
+    private com.dbdoctor.config.DynamicDataSourceManager dynamicDataSourceManager;
+
     // ==================== 状态字段 ====================
 
     /**
@@ -174,7 +187,13 @@ public class SlowLogTableMonitor {
             return;
         }
 
-        // 2. 环境感知逻辑（动态门禁）
+        // 2. 数据源初始化检查（防止首次启动时尝试连接占位符数据源）
+        if (!dynamicDataSourceManager.isInitialized()) {
+            log.debug("目标数据源未初始化，跳过本次慢日志扫描（请先配置数据库连接）");
+            return;
+        }
+
+        // 3. 环境感知逻辑（动态门禁）
         // ⚠️ 已禁用自动环境检查，改为用户手动触发
         // if (envChecker != null) {
         //     boolean isHealthy = envChecker.checkQuickly();
@@ -184,10 +203,10 @@ public class SlowLogTableMonitor {
         //     }
         // }
 
-        // 3. 计算当前应该使用的轮询间隔
+        // 4. 计算当前应该使用的轮询间隔
         long interval = calculateAdaptiveInterval();
 
-        // 4. 判断是否需要执行轮询
+        // 5. 判断是否需要执行轮询
         long elapsed = System.currentTimeMillis() - lastPollTime.get();
         if (elapsed >= interval) {
             // 执行轮询
@@ -299,6 +318,9 @@ public class SlowLogTableMonitor {
 
             List<Map<String, Object>> logs = targetJdbcTemplate.queryForList(sql, lastCheckTime);
 
+            // ✅ 查询成功：更新数据源状态为已连接
+            dataSourceStatusHolder.updateSuccess();
+
             if (logs.isEmpty()) {
                 return; // 没有新日志，直接返回
             }
@@ -356,8 +378,34 @@ public class SlowLogTableMonitor {
             // 如果不在停机阶段，才记录错误日志
             if (!ShutdownManager.isShuttingDown) {
                 log.error("❌ 轮询 mysql.slow_log 表失败", e);
+
+                // 判断是否是连接错误，更新状态
+                if (isConnectionError(e)) {
+                    dataSourceStatusHolder.updateFailure(e.getMessage());
+                }
             }
         }
+    }
+
+    /**
+     * 判断异常是否为连接错误
+     *
+     * @param e 异常
+     * @return 是否为连接错误
+     */
+    private boolean isConnectionError(Exception e) {
+        String message = e.getMessage();
+        if (message == null) {
+            return false;
+        }
+
+        return message.contains("CommunicationsException") ||
+               message.contains("UnknownHostException") ||
+               message.contains("Connection refused") ||
+               message.contains("Communications link failure") ||
+               message.contains("placeholder") ||
+               message.contains("could not create connection to database server") ||
+               message.contains("No operations allowed after connection closed");
     }
 
     /**
@@ -379,6 +427,12 @@ public class SlowLogTableMonitor {
      */
     @Scheduled(cron = "${db-doctor.slow-log-monitor.auto-cleanup.cron-expression:0 0 3 * * ?}")
     public void cleanUpSlowLogTable() {
+        // 检查数据源是否已初始化
+        if (!dynamicDataSourceManager.isInitialized()) {
+            log.debug("目标数据源未初始化，跳过慢日志表清理（请先配置数据库连接）");
+            return;
+        }
+
         // 检查是否启用自动清理
         if (!properties.getAutoCleanup().getEnabled()) {
             log.debug("自动清理功能已禁用（默认关闭），如需启用请在配置文件中设置 db-doctor.slow-log-monitor.auto-cleanup.enabled=true");
