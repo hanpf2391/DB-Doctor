@@ -2,6 +2,8 @@ package com.dbdoctor.repository;
 
 import com.dbdoctor.model.QueryStatisticsDTO;
 import com.dbdoctor.entity.SlowQuerySample;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -28,6 +30,15 @@ public interface SlowQuerySampleRepository extends JpaRepository<SlowQuerySample
      * @return 样本列表
      */
     List<SlowQuerySample> findAllBySqlFingerprintOrderByCapturedAtDesc(String sqlFingerprint);
+
+    /**
+     * 分页查询指定SQL指纹的样本（按捕获时间倒序）
+     *
+     * @param sqlFingerprint SQL指纹
+     * @param pageable 分页参数
+     * @return 分页结果
+     */
+    Page<SlowQuerySample> findBySqlFingerprintOrderByCapturedAt(String sqlFingerprint, Pageable pageable);
 
     /**
      * 查询指定SQL指纹的最近N条样本

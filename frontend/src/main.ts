@@ -3,9 +3,13 @@ import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
+import '@/styles/global.css'
+import '@/styles/notion-global.css'
+import '@/styles/theme-transition.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
+import { useAuthStore } from '@/stores/auth'
 
 // ECharts
 import ECharts from 'vue-echarts'
@@ -50,3 +54,7 @@ app.use(ElementPlus, {
 })
 
 app.mount('#app')
+
+// 恢复认证状态（应用启动时）
+const authStore = useAuthStore()
+authStore.restoreSession()

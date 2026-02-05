@@ -63,7 +63,7 @@
                   <!-- 数据库选择列表 -->
                   <div
                     class="database-selector"
-                    style="border: 1px solid #dcdfe6; border-radius: 4px; max-height: 200px; overflow-y: auto; background: white;"
+                    style="border: 1px solid #dcdfe6; border-radius: 4px; max-height: 200px; overflow-y: auto; background: var(--color-bg-page);"
                   >
                     <div
                       v-for="db in filteredDatabases"
@@ -651,7 +651,7 @@ onMounted(() => {
   border-radius: 4px;
   max-height: 200px;
   overflow-y: auto;
-  background: white;
+  background: var(--color-bg-page);
 }
 
 .database-item {

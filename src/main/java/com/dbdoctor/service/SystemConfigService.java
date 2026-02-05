@@ -1,6 +1,7 @@
 package com.dbdoctor.service;
 
 import com.dbdoctor.entity.SystemConfig;
+import com.dbdoctor.repository.DatabaseInstanceRepository;
 import com.dbdoctor.repository.SystemConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 public class SystemConfigService {
 
     private final SystemConfigRepository configRepository;
+    private final DatabaseInstanceRepository databaseInstanceRepository;
 
     /**
      * 配置缓存名称
@@ -166,6 +168,16 @@ public class SystemConfigService {
     public void updateConfig(String configKey, String configValue, String updatedBy) {
         SystemConfig config = configRepository.findByConfigKey(configKey)
                 .orElseThrow(() -> new IllegalArgumentException("配置不存在: " + configKey));
+
+        // 特殊处理：敏感配置（如密码）为空时，不覆盖原值（防止前端未输入密码时覆盖）
+        if (Boolean.TRUE.equals(config.getIsSensitive()) &&
+            (configValue == null || configValue.trim().isEmpty())) {
+            // 如果原值存在，则跳过更新（保持原密码）
+            if (config.getConfigValue() != null && !config.getConfigValue().trim().isEmpty()) {
+                log.debug("[配置服务] 敏感配置为空，跳过更新，保持原值: {}", configKey);
+                return;
+            }
+        }
 
         // 敏感信息加密
         String finalValue = configValue;
@@ -425,27 +437,71 @@ public class SystemConfigService {
     }
 
     /**
-     * 获取数据库配置（用于创建 DataSource）
+     * 获取数据库配置（用于前端显示和创建 DataSource）
      *
      * @return 数据库配置Map
      */
     public Map<String, String> getDatabaseConfig() {
         Map<String, String> config = new HashMap<>();
 
+        // 从 system_config 表读取配置（兼容旧方式）
         String url = getDecryptedValue("database.url");
         String username = getDecryptedValue("database.username");
         String password = getDecryptedValue("database.password");
+        String monitoredDbs = getString("database.monitored_dbs");
 
-        if (url != null && !url.isEmpty()) {
-            config.put("url", url);
-        }
-        if (username != null && !username.isEmpty()) {
-            config.put("username", username);
-        }
-        if (password != null && !password.isEmpty()) {
-            config.put("password", password);
+        // 从 database_instances 表读取配置（新方式）
+        String instanceId = getString("database.instance_id");
+        String instanceName = getString("database.instance_name");
+
+        log.debug("[配置服务] 读取数据库配置: instance_id={}, instance_name={}, monitored_dbs={}",
+            instanceId, instanceName, monitoredDbs);
+
+        // 优先返回实例配置（如果存在）
+        if (instanceId != null && !instanceId.isEmpty()) {
+            config.put("instance_id", instanceId);
+            if (instanceName != null && !instanceName.isEmpty()) {
+                config.put("instance_name", instanceName);
+            }
+            // 从实例表读取连接信息
+            try {
+                Long id = Long.parseLong(instanceId);
+                databaseInstanceRepository.findById(id).ifPresent(instance -> {
+                    if (instance.getUrl() != null) {
+                        config.put("url", instance.getUrl());
+                    }
+                    if (instance.getUsername() != null) {
+                        config.put("username", instance.getUsername());
+                    }
+                    // 密码脱敏
+                    if (instance.getPassword() != null && !instance.getPassword().isEmpty()) {
+                        config.put("password", "****");
+                    }
+                    log.info("[配置服务] 已从实例加载配置: id={}, name={}", id, instance.getInstanceName());
+                });
+            } catch (NumberFormatException e) {
+                log.warn("[配置服务] database.instance_id 格式错误: {}", instanceId);
+            }
+        } else {
+            // 兼容旧方式：直接返回 system_config 中的配置
+            if (url != null && !url.isEmpty()) {
+                config.put("url", url);
+            }
+            if (username != null && !username.isEmpty()) {
+                config.put("username", username);
+            }
+            if (password != null && !password.isEmpty()) {
+                config.put("password", password);
+            }
+            log.debug("[配置服务] 已加载旧方式配置");
         }
 
+        // 添加监控的数据库列表
+        if (monitoredDbs != null && !monitoredDbs.isEmpty()) {
+            config.put("monitored_dbs", monitoredDbs);
+        }
+
+        log.debug("[配置服务] 返回数据库配置: {}", config);
         return config;
     }
 

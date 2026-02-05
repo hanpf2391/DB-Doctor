@@ -8,6 +8,7 @@ export interface AiServiceInstance {
   id?: number
   instanceName: string
   provider: string
+  deploymentType?: string
   baseUrl?: string
   apiKey?: string
   modelName: string
@@ -23,6 +24,7 @@ export interface AiServiceInstance {
   isDefault?: boolean
   createdAt?: string
   updatedAt?: string
+  _toggling?: boolean
 }
 
 /**

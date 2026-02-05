@@ -1,5 +1,6 @@
 package com.dbdoctor.check;
 
+import com.dbdoctor.common.util.EncryptionService;
 import com.dbdoctor.model.EnvCheckReport;
 import com.dbdoctor.model.EnvCheckReport.CheckItem;
 import lombok.RequiredArgsConstructor;
@@ -33,12 +34,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MySqlEnvChecker {
 
+    private final EncryptionService encryptionService;
+
     /**
      * 执行完整的环境检查（含连接测试）
      *
      * @param url      JDBC URL
      * @param username 用户名
-     * @param password 密码
+     * @param password 明文密码（调用方已解密）
      * @return 环境检查报告
      */
     public EnvCheckReport checkFully(String url, String username, String password) {
@@ -110,11 +113,15 @@ public class MySqlEnvChecker {
      */
     private JdbcTemplate testConnection(String url, String username, String password, EnvCheckReport report) {
         try {
+            // 尝试解密密码（如果是密文则解密，如果是明文则保持不变）
+            String actualPassword = encryptionService.decrypt(password);
+            log.debug("密码处理完成，长度: {}", actualPassword != null ? actualPassword.length() : 0);
+
             // 创建临时数据源测试连接
             com.zaxxer.hikari.HikariDataSource dataSource = new com.zaxxer.hikari.HikariDataSource();
             dataSource.setJdbcUrl(url);
             dataSource.setUsername(username);
-            dataSource.setPassword(password);
+            dataSource.setPassword(actualPassword); // 使用解密后的密码
             dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
             dataSource.setConnectionTimeout(10000); // 10秒超时
 

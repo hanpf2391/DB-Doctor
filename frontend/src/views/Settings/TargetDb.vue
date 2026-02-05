@@ -426,13 +426,33 @@ async function loadConfig() {
   try {
     const result = await getDatabaseConfig()
 
-    if (result.url) {
+    console.log('📋 [加载配置] 后端返回的数据:', result)
+    console.log('📋 [加载配置] 当前实例列表数量:', availableInstances.value.length)
+
+    // 优先加载实例配置（新功能）
+    if (result.instance_id) {
+      const instanceId = parseInt(result.instance_id)
+      console.log('✅ [加载配置] 已加载当前使用的实例 ID:', instanceId)
+
+      // 从实例列表中找到对应实例，填充表单
+      const instance = availableInstances.value.find(i => i.id === instanceId)
+      if (instance) {
+        selectedInstanceId.value = instanceId
+        form.url = instance.url
+        form.username = instance.username
+        console.log('✅ [加载配置] 已从实例加载配置:', instance.instanceName)
+      } else {
+        console.warn('⚠️  [加载配置] 未找到实例 ID:', instanceId, '，实例列表:', availableInstances.value.map(i => i.id))
+      }
+    } else if (result.url) {
+      // 兼容旧方式：直接从 system_config 加载
       form.url = result.url
+      if (result.username) {
+        form.username = result.username
+      }
+      // 密码不回显（为了安全）
+      console.log('📋 [加载配置] 已加载旧方式配置')
     }
-    if (result.username) {
-      form.username = result.username
-    }
-    // 密码不回显（为了安全）
 
     // 加载已选择的数据库
     if (result.monitored_dbs) {
@@ -440,13 +460,14 @@ async function loadConfig() {
         const dbs = JSON.parse(result.monitored_dbs)
         if (Array.isArray(dbs)) {
           form.selectedDatabases = dbs
+          console.log('✅ [加载配置] 已加载监控数据库列表:', dbs)
         }
       } catch (e) {
-        console.error('解析数据库列表失败:', e)
+        console.error('❌ [加载配置] 解析数据库列表失败:', e)
       }
     }
   } catch (error) {
-    console.error('加载配置失败:', error)
+    console.error('❌ [加载配置] 加载配置失败:', error)
   }
 }
 
@@ -535,6 +556,16 @@ async function saveConfig() {
       'database.monitored_dbs': JSON.stringify(form.selectedDatabases)
     }
 
+    // 如果选择了实例，保存实例信息
+    if (selectedInstanceId.value) {
+      const instance = availableInstances.value.find(i => i.id === selectedInstanceId.value)
+      if (instance) {
+        configs['database.instance_id'] = String(instance.id)
+        configs['database.instance_name'] = instance.instanceName
+        console.log('💾 [保存配置] 保存实例信息:', instance.id, instance.instanceName)
+      }
+    }
+
     const result = await batchUpdateConfigs({
       configs,
       updatedBy: 'admin'
@@ -552,11 +583,17 @@ async function saveConfig() {
         // 更新连接状态
         dbStatus.value.connected = true
         dbStatus.value.lastError = null
+
+        // 重新加载配置（显示当前使用的实例）
+        await loadConfig()
       } else {
         ElMessage.success({
           message: `✅ 配置保存成功！已更新 ${result.updatedCount} 项配置。请重启服务以使配置生效。`,
           duration: 5000
         })
+
+        // 重新加载配置（显示当前使用的实例）
+        await loadConfig()
       }
     } else {
       ElMessage.warning('配置未发生变化')
@@ -595,9 +632,10 @@ async function fetchDbStatus() {
   }
 }
 
-onMounted(() => {
-  loadConfig()
-  loadDatabaseInstances()
+onMounted(async () => {
+  // 先加载实例列表，再加载配置（确保 loadConfig 能找到对应的实例）
+  await loadDatabaseInstances()
+  await loadConfig()
   fetchDbStatus()
 })
 </script>

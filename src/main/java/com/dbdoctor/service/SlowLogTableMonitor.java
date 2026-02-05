@@ -336,6 +336,14 @@ public class SlowLogTableMonitor {
                     String sqlContent = (String) logEntry.get("sql_content");
                     String userHost = (String) logEntry.get("user_host");
 
+                    // ⚠️ 跨库查询处理：如果 db 字段为空，尝试从 SQL 中提取数据库名
+                    if ((dbName == null || dbName.trim().isEmpty()) && sqlContent != null && !sqlContent.isBlank()) {
+                        dbName = extractDatabaseFromSql(sqlContent);
+                        if (dbName != null && !dbName.trim().isEmpty()) {
+                            log.debug("🔍 [跨库查询] 从 SQL 中提取数据库名: {}", dbName);
+                        }
+                    }
+
                     // 提取数值类型字段
                     double queryTime = ((Number) logEntry.get("query_time_sec")).doubleValue();
                     double lockTime = ((Number) logEntry.get("lock_time_sec")).doubleValue();
@@ -576,5 +584,80 @@ public class SlowLogTableMonitor {
      */
     public Timestamp getLastCheckTime() {
         return lastCheckTime;
+    }
+
+    /**
+     * 从 SQL 语句中提取数据库名
+     * 支持格式：database.table 或 `database`.`table`
+     *
+     * @param sql SQL 语句
+     * @return 数据库名，如果无法提取则返回 null
+     */
+    private String extractDatabaseFromSql(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+            // 转大写并移除多余空格，便于解析
+            String normalizedSql = sql.toUpperCase().replaceAll("\\s+", " ");
+
+            // 查找 FROM 子句的位置
+            int fromIndex = normalizedSql.indexOf(" FROM ");
+            if (fromIndex == -1) {
+                // 如果没有 FROM，尝试查找 UPDATE
+                fromIndex = normalizedSql.indexOf(" UPDATE ");
+                if (fromIndex == -1) {
+                    // 如果也没有 UPDATE，尝试查找 INSERT INTO
+                    fromIndex = normalizedSql.indexOf(" INTO ");
+                    if (fromIndex == -1) {
+                        return null;
+                    }
+                    fromIndex += 6; // " INTO ".length()
+                } else {
+                    fromIndex += 7; // " UPDATE ".length()
+                }
+            } else {
+                fromIndex += 6; // " FROM ".length()
+            }
+
+            // 提取 FROM/UPDATE/INTO 之后的部分（到下一个关键字之前）
+            String afterFrom = normalizedSql.substring(fromIndex).trim();
+
+            // 查找第一个表引用（可能带有数据库名前缀）
+            int spaceIndex = afterFrom.indexOf(' ');
+            int commaIndex = afterFrom.indexOf(',');
+            int joinIndex = afterFrom.indexOf(" JOIN ");
+
+            // 取最近的分隔符
+            int endIndex = afterFrom.length();
+            if (spaceIndex > 0 && spaceIndex < endIndex) endIndex = spaceIndex;
+            if (commaIndex > 0 && commaIndex < endIndex) endIndex = commaIndex;
+            if (joinIndex > 0 && joinIndex < endIndex) endIndex = joinIndex;
+
+            String firstTableRef = afterFrom.substring(0, endIndex).trim();
+
+            // 移除可能的别名（AS 或空格后的别名）
+            if (firstTableRef.contains(" AS ")) {
+                firstTableRef = firstTableRef.substring(0, firstTableRef.indexOf(" AS ")).trim();
+            }
+
+            // 提取数据库名（支持带反引号和不带反引号）
+            String dbName = null;
+
+            // 匹配 `database`.`table` 或 database.table
+            if (firstTableRef.contains(".")) {
+                String[] parts = firstTableRef.split("\\.");
+                if (parts.length >= 2) {
+                    dbName = parts[0].replaceAll("`", "").trim();
+                }
+            }
+
+            return dbName;
+
+        } catch (Exception e) {
+            log.warn("⚠️ [SQL解析] 提取数据库名失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

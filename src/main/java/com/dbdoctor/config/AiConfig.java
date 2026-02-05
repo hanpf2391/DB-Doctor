@@ -6,13 +6,13 @@ import com.dbdoctor.agent.DBAgent;
 import com.dbdoctor.agent.ReasoningAgent;
 import com.dbdoctor.agent.CodingAgent;
 import com.dbdoctor.monitoring.AiMonitoringListener;
+import com.dbdoctor.service.AiConfigManagementService;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,19 +21,24 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * AI 配置类 - 动态模型工厂
+ * AI 配置类 - 动态模型工厂（数据库配置驱动，懒加载模式）
  * 支持 Ollama 本地模型、OpenAI 兼容云端 API（DeepSeek、硅基流动等）
  *
+ * 配置说明：
+ * - AI 功能的启用/禁用由数据库配置 ai.enabled 控制
+ * - AI Bean 采用懒加载模式，每次使用时从数据库读取最新配置
+ * - 支持运行时热加载，无需重启应用
+ * - 默认禁用，需要在系统设置中启用
+ *
  * @author DB-Doctor
- * @version 2.2.0
+ * @version 3.1.0
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "db-doctor.ai.enabled", havingValue = "true", matchIfMissing = false)
 public class AiConfig {
 
     @Autowired
-    private AiProperties properties;
+    private AiConfigManagementService aiConfigService;
 
     @Autowired
     @Qualifier("targetJdbcTemplate")
@@ -46,59 +51,106 @@ public class AiConfig {
     private AiMonitoringListener aiMonitoringListener;
 
     /**
-     * 配置主治医生的 ChatLanguageModel
+     * 配置主治医生的 ChatLanguageModel（从数据库读取配置）
      * 支持工具调用，必须使用支持 Tool Calling 的模型
      *
      * @return ChatLanguageModel 实例
      */
     @Bean
     public ChatLanguageModel diagnosisChatLanguageModel() {
-        AiProperties.AgentConfig config = properties.getDiagnosis();
-        log.info("初始化主治医生 ChatLanguageModel: provider={}, model={}",
-                config.getProvider(), config.getModelName());
-        return createModel(config);
+        log.info("🔍 [数据库配置] 创建主治医生 ChatLanguageModel");
+
+        // 检查 AI 是否启用
+        if (!aiConfigService.isAiEnabled()) {
+            log.warn("⚠️ AI 功能未启用，返回默认模型（将在首次使用时从数据库加载）");
+            // 返回一个默认的模型，后续使用时会从数据库重新加载
+            return dev.langchain4j.model.ollama.OllamaChatModel.builder()
+                    .baseUrl("http://localhost:11434")
+                    .modelName("qwen2.5:7b")
+                    .temperature(0.0)
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
+        }
+
+        // 从数据库读取配置
+        String provider = aiConfigService.getAiProvider();
+        String baseUrl = aiConfigService.getBaseUrl();
+        String apiKey = aiConfigService.getApiKey();
+        String modelName = aiConfigService.getDiagnosisModelName();
+        Long timeoutSeconds = aiConfigService.getTimeoutSeconds();
+
+        log.info("📊 [从数据库读取配置] agent=diagnosis, provider={}, model={}, baseUrl={}",
+                provider, modelName, baseUrl);
+
+        return createModelInternal(provider, baseUrl, apiKey, modelName, 0.0, timeoutSeconds);
     }
 
     /**
-     * 配置推理专家的 ChatLanguageModel
+     * 配置推理专家的 ChatLanguageModel（从数据库读取配置）
      * 不需要工具调用，可以使用任意模型
      *
      * @return ChatLanguageModel 实例
      */
     @Bean
     public ChatLanguageModel reasoningChatLanguageModel() {
-        AiProperties.AgentConfig config = properties.getReasoning();
-        log.info("初始化推理专家 ChatLanguageModel: provider={}, model={}",
-                config.getProvider(), config.getModelName());
-        return createModel(config);
+        log.info("🔍 [数据库配置] 创建推理专家 ChatLanguageModel");
+
+        // 检查 AI 是否启用
+        if (!aiConfigService.isAiEnabled()) {
+            log.warn("⚠️ AI 功能未启用，返回默认模型");
+            return dev.langchain4j.model.ollama.OllamaChatModel.builder()
+                    .baseUrl("http://localhost:11434")
+                    .modelName("deepseek-r1:7b")
+                    .temperature(0.0)
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
+        }
+
+        // 从数据库读取配置
+        String provider = aiConfigService.getAiProvider();
+        String baseUrl = aiConfigService.getBaseUrl();
+        String apiKey = aiConfigService.getApiKey();
+        String modelName = aiConfigService.getReasoningModelName();
+        Long timeoutSeconds = aiConfigService.getTimeoutSeconds();
+
+        log.info("📊 [从数据库读取配置] agent=reasoning, provider={}, model={}, baseUrl={}",
+                provider, modelName, baseUrl);
+
+        return createModelInternal(provider, baseUrl, apiKey, modelName, 0.0, timeoutSeconds);
     }
 
     /**
-     * 配置编码专家的 ChatLanguageModel
+     * 配置编码专家的 ChatLanguageModel（从数据库读取配置）
      * 不需要工具调用，可以使用任意模型
      *
      * @return ChatLanguageModel 实例
      */
     @Bean
     public ChatLanguageModel codingChatLanguageModel() {
-        AiProperties.AgentConfig config = properties.getCoding();
-        log.info("初始化编码专家 ChatLanguageModel: provider={}, model={}",
-                config.getProvider(), config.getModelName());
-        return createModel(config);
-    }
+        log.info("🔍 [数据库配置] 创建编码专家 ChatLanguageModel");
 
-    /**
-     * 配置 DiagnosticTools Bean（诊断工具箱）
-     *
-     * 注意：返回的是 DiagnosticToolsImpl 实例，作为 Spring Bean 管理
-     * 但在 DBAgent 中仍会创建新的非代理实例用于 LangChain4j 工具调用
-     *
-     * @return DiagnosticTools 实例
-     */
-    @Bean
-    public DiagnosticTools diagnosticTools() {
-        log.info("初始化 DiagnosticTools Bean（用于 MultiAgentCoordinator）");
-        return new DiagnosticToolsImpl(targetJdbcTemplate);
+        // 检查 AI 是否启用
+        if (!aiConfigService.isAiEnabled()) {
+            log.warn("⚠️ AI 功能未启用，返回默认模型");
+            return dev.langchain4j.model.ollama.OllamaChatModel.builder()
+                    .baseUrl("http://localhost:11434")
+                    .modelName("deepseek-coder:6.7b")
+                    .temperature(0.0)
+                    .timeout(Duration.ofSeconds(60))
+                    .build();
+        }
+
+        // 从数据库读取配置
+        String provider = aiConfigService.getAiProvider();
+        String baseUrl = aiConfigService.getBaseUrl();
+        String apiKey = aiConfigService.getApiKey();
+        String modelName = aiConfigService.getCodingModelName();
+        Long timeoutSeconds = aiConfigService.getTimeoutSeconds();
+
+        log.info("📊 [从数据库读取配置] agent=coding, provider={}, model={}, baseUrl={}",
+                provider, modelName, baseUrl);
+
+        return createModelInternal(provider, baseUrl, apiKey, modelName, 0.0, timeoutSeconds);
     }
 
     /**
@@ -137,9 +189,6 @@ public class AiConfig {
                 .chatLanguageModel(reasoningChatLanguageModel)
                 .build();
 
-        // 注意：SqlDiagnosticsTools 已废弃，不再注入 Agent
-        // sqlDiagnosticsTools.setReasoningAgent(agent);
-
         return agent;
     }
 
@@ -156,36 +205,21 @@ public class AiConfig {
                 .chatLanguageModel(codingChatLanguageModel)
                 .build();
 
-        // 注意：SqlDiagnosticsTools 已废弃，不再注入 Agent
-        // sqlDiagnosticsTools.setCodingAgent(agent);
-
         return agent;
     }
 
-    // === 辅助方法 ===
-
     /**
-     * 刷新 AI 配置并重建 Bean（热重载）
+     * 配置 DiagnosticTools Bean（诊断工具箱）
      *
-     * @param newConfig 新的配置对象
+     * 注意：返回的是 DiagnosticToolsImpl 实例，作为 Spring Bean 管理
+     * 但在 DBAgent 中仍会创建新的非代理实例用于 LangChain4j 工具调用
+     *
+     * @return DiagnosticTools 实例
      */
-    public void refreshAiConfig(AiProperties newConfig) {
-        log.info("🔄 刷新 AI 配置: enabled={}", newConfig.isEnabled());
-
-        // 直接更新配置对象的属性
-        this.properties.setEnabled(newConfig.isEnabled());
-        this.properties.setDiagnosis(newConfig.getDiagnosis());
-        this.properties.setReasoning(newConfig.getReasoning());
-        this.properties.setCoding(newConfig.getCoding());
-
-        log.info("✅ AI 配置刷新完成");
-        log.info("   - 主治医生: {} @ {}", newConfig.getDiagnosis().getModelName(), newConfig.getDiagnosis().getBaseUrl());
-        log.info("   - 推理专家: {} @ {}", newConfig.getReasoning().getModelName(), newConfig.getReasoning().getBaseUrl());
-        log.info("   - 编码专家: {} @ {}", newConfig.getCoding().getModelName(), newConfig.getCoding().getBaseUrl());
-
-        // 注意：由于 Spring Bean 是单例的，这里只更新了配置对象的值
-        // 下次调用 AI 时会使用新配置，但已创建的 ChatLanguageModel Bean 不会自动重建
-        // 如果需要立即重建 Bean，需要使用 @RefreshScope 或 ApplicationContext
+    @Bean
+    public DiagnosticTools diagnosticTools() {
+        log.info("初始化 DiagnosticTools Bean（用于 MultiAgentCoordinator）");
+        return new DiagnosticToolsImpl(targetJdbcTemplate);
     }
 
     // === 辅助方法 ===
@@ -197,17 +231,22 @@ public class AiConfig {
      * - ollama：本地 Ollama 模型（使用 OllamaChatModel）
      * - openai/deepseek/aliyun：OpenAI 兼容的云端 API（使用 OpenAiChatModel）
      *
-     * @param config Agent 配置
+     * @param provider 供应商
+     * @param baseUrl API 基础 URL
+     * @param apiKey API 密钥
+     * @param modelName 模型名称
+     * @param temperature 温度参数
+     * @param timeoutSeconds 超时时间（秒）
      * @return ChatLanguageModel 实例
      */
-    private ChatLanguageModel createModel(AiProperties.AgentConfig config) {
-        String provider = config.getProvider();
-        String baseUrl = config.getBaseUrl();
-        String apiKey = config.getApiKey();
-        String modelName = config.getModelName();
-        Double temperature = config.getTemperature();
-        Long timeoutSeconds = config.getTimeoutSeconds();
-
+    private ChatLanguageModel createModelInternal(
+            String provider,
+            String baseUrl,
+            String apiKey,
+            String modelName,
+            Double temperature,
+            Long timeoutSeconds
+    ) {
         log.debug("创建模型: provider={}, baseUrl={}, model={}, temperature={}",
                 provider, baseUrl, modelName, temperature);
 

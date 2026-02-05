@@ -170,6 +170,27 @@ export function reanalyzeReport(id: number) {
 }
 
 /**
+ * 获取慢查询样本列表 - 🆕
+ */
+export function getReportSamples(id: number, page?: number, size?: number) {
+  return request({
+    url: `/reports/${id}/samples`,
+    method: 'get',
+    params: { page, size }
+  })
+}
+
+/**
+ * 获取 AI 调用链路详情 - 🆕
+ */
+export function getAiAnalysisTrace(traceId: string) {
+  return request({
+    url: `/ai-monitor/analysis-trace/${traceId}`,
+    method: 'get'
+  })
+}
+
+/**
  * 系统维护相关 API
  */
 

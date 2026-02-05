@@ -4,6 +4,7 @@ import com.dbdoctor.common.Result;
 import com.dbdoctor.config.DynamicDataSourceManager;
 import com.dbdoctor.entity.SystemConfig;
 import com.dbdoctor.service.SystemConfigService;
+import com.dbdoctor.service.AiConfigManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -29,16 +30,27 @@ public class SystemConfigController {
 
     private final SystemConfigService configService;
     private final DynamicDataSourceManager dynamicDataSourceManager;
+    private final AiConfigManagementService aiConfigService;
 
     /**
      * 获取所有配置（按分组和显示顺序排序）
      *
-     * @return 配置列表
+     * @return 配置Map（前端期待的格式：{ configs: { "key": "value" } }）
      */
     @GetMapping
-    public Result<List<SystemConfig>> getAllConfigs() {
-        List<SystemConfig> configs = configService.findAll();
-        return Result.success(configs);
+    public Result<Map<String, Object>> getAllConfigs() {
+        List<SystemConfig> configList = configService.findAll();
+
+        // 转换为前端期待的格式：{ configs: { "database.instance_id": "2", ... } }
+        Map<String, String> configsMap = new HashMap<>();
+        for (SystemConfig config : configList) {
+            configsMap.put(config.getConfigKey(), config.getConfigValue());
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("configs", configsMap);
+
+        return Result.success(result);
     }
 
     /**
@@ -116,10 +128,16 @@ public class SystemConfigController {
                                key.startsWith("database.password") ||
                                key.startsWith("database.monitored_dbs"));
 
+            // 检查是否更新了 AI 配置
+            boolean hasAiConfig = configs.keySet().stream()
+                .anyMatch(key -> key.startsWith("ai.") ||
+                               key.startsWith("cost.") ||
+                               key.startsWith("monitoring."));
+
             // 更新配置
             Map<String, Object> result = configService.batchUpdateConfigs(configs, updatedBy);
 
-            // 如果更新了数据库配置，触发热部署
+            // 热加载处理
             if (hasDatabaseConfig) {
                 log.info("🔄 [热部署] 检测到数据库配置更新，开始热加载数据源...");
                 boolean reloadSuccess = dynamicDataSourceManager.reloadDataSource();
@@ -131,6 +149,11 @@ public class SystemConfigController {
                     result.put("hotReload", false);
                     result.put("hotReloadMessage", "⚠️  配置已保存，但数据源热更新失败，请重启服务");
                 }
+            } else if (hasAiConfig) {
+                log.info("🔄 [热部署] 检测到 AI 配置更新，刷新 AI 配置缓存...");
+                aiConfigService.refreshCache();
+                result.put("hotReload", true);
+                result.put("hotReloadMessage", "✅ AI 配置已保存并热加载，无需重启服务！");
             } else {
                 result.put("hotReload", false);
                 result.put("hotReloadMessage", "ℹ️  配置已保存，无需重启");

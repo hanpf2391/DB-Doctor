@@ -33,14 +33,14 @@ public class AiServiceInstanceController {
     private final AiServiceInstanceService service;
 
     /**
-     * 获取所有AI服务实例
+     * 获取所有AI服务实例（包括禁用的）
      *
      * @return 实例列表
      */
     @GetMapping
     public Result<List<AiServiceInstance>> findAll() {
         log.info("API调用: 获取所有AI服务实例");
-        List<AiServiceInstance> instances = service.findAllEnabled();
+        List<AiServiceInstance> instances = service.findAll();
         return Result.success(instances);
     }
 

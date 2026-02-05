@@ -6,7 +6,6 @@ import com.dbdoctor.model.ModelPricing;
 import com.dbdoctor.repository.AiInvocationLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -26,8 +25,15 @@ import java.util.stream.Collectors;
  *   <li>按模型、Agent 维度分析成本</li>
  * </ul>
  *
+ * <p>配置来源：</p>
+ * <ul>
+ *   <li>从数据库配置表读取定价（支持热加载）</li>
+ *   <li>配置键：cost.model_pricing.{model_name}</li>
+ *   <li>格式：input_price,output_price,provider</li>
+ * </ul>
+ *
  * @author DB-Doctor
- * @version 2.3.2
+ * @version 3.1.0
  */
 @Slf4j
 @Service
@@ -35,20 +41,7 @@ import java.util.stream.Collectors;
 public class AiCostService {
 
     private final AiInvocationLogRepository repository;
-
-    /**
-     * 模型定价配置（从 application.yml 读取）
-     *
-     * 示例配置：
-     * db-doctor:
-     *   ai:
-     *     cost:
-     *       model-pricing:
-     *         gpt-4o: { input-price: 5.0, output-price: 15.0, provider: openai }
-     *         qwen: { input-price: 0.0, output-price: 0.0, provider: ollama }
-     */
-    @Value("#{${db-doctor.ai.cost.model-pricing:{}}}")
-    private Map<String, ModelPricing> modelPricingMap = new HashMap<>();
+    private final AiConfigManagementService aiConfigService;
 
     /**
      * 默认定价（配置缺失时使用）
@@ -155,24 +148,50 @@ public class AiCostService {
      * @return 定价配置
      */
     private ModelPricing findPricing(String modelName) {
-        if (modelName == null || modelPricingMap.isEmpty()) {
+        if (modelName == null) {
+            return DEFAULT_PRICING;
+        }
+
+        // 从数据库配置服务获取定价
+        Map<String, Object> pricingMap = aiConfigService.getModelPricing();
+
+        if (pricingMap.isEmpty()) {
+            log.debug("[成本分析] 数据库中无定价配置，使用默认值");
             return DEFAULT_PRICING;
         }
 
         // 精确匹配
-        if (modelPricingMap.containsKey(modelName)) {
-            return modelPricingMap.get(modelName);
+        if (pricingMap.containsKey(modelName)) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> config = (Map<String, Object>) pricingMap.get(modelName);
+            return mapToModelPricing(config);
         }
 
         // 模糊匹配（如 "gpt-4o-mini" 匹配 "gpt-4o"）
-        for (Map.Entry<String, ModelPricing> entry : modelPricingMap.entrySet()) {
+        for (Map.Entry<String, Object> entry : pricingMap.entrySet()) {
             if (modelName.toLowerCase().contains(entry.getKey().toLowerCase())) {
-                return entry.getValue();
+                @SuppressWarnings("unchecked")
+                Map<String, Object> config = (Map<String, Object>) entry.getValue();
+                return mapToModelPricing(config);
             }
         }
 
         log.warn("[成本分析] 未找到模型 {} 的定价配置，使用默认值", modelName);
         return DEFAULT_PRICING;
+    }
+
+    /**
+     * 将 Map 转换为 ModelPricing 对象
+     *
+     * @param config 配置 Map
+     * @return ModelPricing 对象
+     */
+    private ModelPricing mapToModelPricing(Map<String, Object> config) {
+        return ModelPricing.builder()
+                .inputPrice((Double) config.getOrDefault("input-price", 0.0))
+                .outputPrice((Double) config.getOrDefault("output-price", 0.0))
+                .provider((String) config.getOrDefault("provider", "unknown"))
+                .build();
     }
 
     /**

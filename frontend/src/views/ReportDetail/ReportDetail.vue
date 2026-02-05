@@ -2,12 +2,12 @@
   <el-drawer
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
-    size="70%"
+    size="80%"
     :destroy-on-close="true"
   >
     <template #header>
       <div class="drawer-header">
-        <h3>慢查询诊断报告 #{{ reportId }}</h3>
+        <h3>🎯 慢查询诊断报告 #{{ reportId }}</h3>
       </div>
     </template>
 
@@ -75,32 +75,214 @@
         </el-descriptions>
       </el-card>
 
-      <!-- SQL 样本 -->
-      <el-card class="sql-card" shadow="never">
-        <template #header>
-          <span class="card-title">样本 SQL（最慢）</span>
-        </template>
-        <SqlHighlight
-          :code="reportData.sqlTemplate"
-          title="SQL 语句"
-        />
-      </el-card>
+      <!-- Tab 组件：历史样本 + AI 调用链路 -->
+      <el-tabs v-model="activeTab" class="detail-tabs">
+        <!-- Tab 1: 历史样本列表 -->
+        <el-tab-pane label="历史样本列表" name="samples">
+          <template #header>
+            <div class="tab-header">
+              <span>历史执行样本（共 {{ samplesTotal }} 条）</span>
+              <el-button
+                size="small"
+                @click="loadSamples"
+                :loading="samplesLoading"
+              >
+                <el-icon><Refresh /></el-icon>
+                刷新
+              </el-button>
+            </div>
+          </template>
 
-      <!-- AI 诊断报告 -->
-      <el-card class="report-card" shadow="never">
-        <template #header>
-          <span class="card-title">👨⚕️ AI 诊断报告</span>
-        </template>
-        <MarkdownPreview
-          v-if="reportData.aiAnalysisReport"
-          :text="reportData.aiAnalysisReport"
-        />
-        <el-empty
-          v-else
-          description="暂无分析报告"
-          :image-size="100"
-        />
-      </el-card>
+          <el-table :data="samples" v-loading="samplesLoading" stripe>
+            <el-table-column prop="capturedAt" label="捕获时间" width="170" />
+            <el-table-column prop="userHost" label="用户@主机" width="180" />
+            <el-table-column prop="queryTime" label="耗时(秒)" width="100">
+              <template #default="scope">
+                {{ scope.row.queryTime.toFixed(3) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="rowsExamined" label="扫描行数" width="100">
+              <template #default="scope">
+                {{ scope.row.rowsExamined.toLocaleString() }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="originalSql" label="SQL 语句" min-width="300">
+              <template #default="scope">
+                <SqlTooltip :sql="scope.row.originalSql" :max-length="100" />
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="samplesPagination.page"
+            v-model:page-size="samplesPagination.size"
+            :total="samplesPagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadSamples"
+            @current-change="loadSamples"
+            style="margin-top: 20px"
+          />
+        </el-tab-pane>
+
+        <!-- Tab 2: AI 调用链路追踪 -->
+        <el-tab-pane label="AI 调用链路" name="aiTrace">
+          <template #header>
+            <div class="tab-header">
+              <span>AI 调用链路追踪</span>
+              <el-button
+                size="small"
+                @click="loadAiTrace"
+                :loading="aiTraceLoading"
+              >
+                <el-icon><Refresh /></el-icon>
+                刷新
+              </el-button>
+            </div>
+          </template>
+
+          <div v-if="aiTraceData" class="ai-trace-content">
+            <!-- 汇总信息卡片 -->
+            <div class="ai-summary-header">
+              <div class="summary-item">
+                <div class="summary-label">总调用次数</div>
+                <div class="summary-value">{{ aiTraceData.totalCalls }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">总耗时</div>
+                <div class="summary-value">{{ formatDuration(aiTraceData.totalDurationMs) }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">总 Token</div>
+                <div class="summary-value">{{ aiTraceData.totalTokens.toLocaleString() }}</div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">成功率</div>
+                <div class="summary-value">{{ aiTraceData.successRate.toFixed(1) }}%</div>
+              </div>
+            </div>
+
+            <!-- 时间范围信息 -->
+            <el-alert
+              v-if="aiTraceData.startTime && aiTraceData.endTime"
+              type="info"
+              :closable="false"
+              style="margin-bottom: 20px"
+            >
+              <template #title>
+                <span style="font-size: 13px; color: #606266">
+                  <strong>分析时间：</strong>
+                  {{ formatDateTime(aiTraceData.startTime) }} ~ {{ formatDateTime(aiTraceData.endTime) }}
+                  （总耗时 {{ formatDuration(aiTraceData.totalDurationMs) }}）
+                </span>
+              </template>
+            </el-alert>
+
+            <!-- 调用链路列表 -->
+            <div class="invocation-list">
+              <div
+                v-for="(invocation, index) in aiTraceData.invocations"
+                :key="invocation.id"
+                class="invocation-item"
+              >
+                <!-- 序号 + 时间 -->
+                <div class="invocation-number">{{ index + 1 }}</div>
+
+                <!-- 主要内容 -->
+                <div class="invocation-content">
+                  <!-- 标题行：Agent 角色 + 状态 -->
+                  <div class="invocation-title">
+                    <div class="title-left">
+                      <el-tag
+                        :type="getAgentTagType(invocation.agentCode)"
+                        size="large"
+                        effect="dark"
+                      >
+                        {{ invocation.agentDisplayName }}
+                      </el-tag>
+                      <span class="agent-code">{{ invocation.agentCode }}</span>
+                    </div>
+                    <div class="title-right">
+                      <el-tag
+                        :type="invocation.statusCode === 'SUCCESS' ? 'success' : 'danger'"
+                        size="small"
+                      >
+                        {{ invocation.statusDisplayName }}
+                      </el-tag>
+                    </div>
+                  </div>
+
+                  <!-- 详细信息 -->
+                  <div class="invocation-details">
+                    <div class="detail-item">
+                      <span class="detail-label">开始时间</span>
+                      <span class="detail-value">{{ formatDateTime(invocation.startTime) }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">耗时</span>
+                      <span class="detail-value time-cost">{{ formatDuration(invocation.durationMs) }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">模型</span>
+                      <span class="detail-value">{{ invocation.modelName || '未知' }}</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="detail-label">Token</span>
+                      <span class="detail-value">
+                        <span class="token-input">{{ invocation.inputTokens }}</span>
+                        <span class="token-separator">→</span>
+                        <span class="token-output">{{ invocation.outputTokens }}</span>
+                        <span class="token-total">({{ invocation.totalTokens }})</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 错误信息 -->
+                  <div v-if="invocation.errorMessage" class="error-box">
+                    <el-icon class="error-icon"><WarningFilled /></el-icon>
+                    <span class="error-text">{{ invocation.errorMessage }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-empty
+            v-else-if="!aiTraceLoading"
+            description="暂无调用链路数据"
+            :image-size="100"
+          />
+        </el-tab-pane>
+
+        <!-- 默认 Tab: AI 诊断报告 -->
+        <el-tab-pane label="AI 诊断报告" name="report">
+          <template #header>
+            <span class="card-title">👨⚕️ AI 诊断报告</span>
+          </template>
+
+          <el-card class="sql-card" shadow="never">
+            <template #header>
+              <span class="card-title">样本 SQL（最慢）</span>
+            </template>
+            <SqlHighlight
+              :code="reportData.sqlTemplate"
+              title="SQL 语句"
+            />
+          </el-card>
+
+          <el-card class="report-card" shadow="never">
+            <MarkdownPreview
+              v-if="reportData.aiAnalysisReport"
+              :text="reportData.aiAnalysisReport"
+            />
+            <el-empty
+              v-else
+              description="暂无分析报告"
+              :image-size="100"
+            />
+          </el-card>
+        </el-tab-pane>
+      </el-tabs>
     </div>
 
     <el-empty
@@ -112,12 +294,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DocumentCopy, Loading } from '@element-plus/icons-vue'
-import { getReportDetail } from '@/api/config'
+import { DocumentCopy, Loading, Refresh, WarningFilled } from '@element-plus/icons-vue'
+import { getReportDetail, getReportSamples, getAiAnalysisTrace } from '@/api/config'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import SqlHighlight from '@/components/SqlHighlight.vue'
+import SqlTooltip from '@/components/SqlTooltip.vue'
 import type { ReportDetailData, VitalSign } from './types'
 import { formatSeconds, formatMilliseconds } from '@/utils/format'
 
@@ -132,6 +315,20 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const reportData = ref<ReportDetailData | null>(null)
+
+// 🆕 Tab 相关状态
+const activeTab = ref('report') // 默认显示 AI 诊断报告
+const samples = ref<any[]>([])
+const samplesLoading = ref(false)
+const samplesPagination = reactive({
+  page: 1,
+  size: 10,
+  total: 0
+})
+const samplesTotal = computed(() => samplesPagination.total)
+
+const aiTraceData = ref<any>(null)
+const aiTraceLoading = ref(false)
 
 // 指标卡片数据
 const vitalSigns = computed<VitalSign[]>(() => {
@@ -243,10 +440,95 @@ async function loadReport() {
   }
 }
 
+// 加载历史样本列表
+async function loadSamples() {
+  if (!props.reportId) return
+
+  samplesLoading.value = true
+  try {
+    const result = await getReportSamples(props.reportId, samplesPagination.page, samplesPagination.size)
+    samples.value = result.records || []
+    samplesPagination.total = result.total || 0
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载样本失败')
+  } finally {
+    samplesLoading.value = false
+  }
+}
+
+// 加载 AI 调用链路
+async function loadAiTrace() {
+  if (!reportData.value?.fingerprint) return
+
+  aiTraceLoading.value = true
+  try {
+    aiTraceData.value = await getAiAnalysisTrace(reportData.value.fingerprint)
+  } catch (error: any) {
+    ElMessage.error(error.message || '加载调用链路失败')
+  } finally {
+    aiTraceLoading.value = false
+  }
+}
+
+// 获取代理标签类型
+function getAgentTagType(agentName: string): 'success' | 'info' | 'warning' | 'danger' {
+  const typeMap: Record<string, string> = {
+    'DIAGNOSIS': 'warning',
+    'REASONING': 'info',
+    'CODING': 'success'
+  }
+  return (typeMap[agentName] || 'info') as any
+}
+
+// 获取代理中文名称
+function getAgentName(agentName: string): string {
+  const nameMap: Record<string, string> = {
+    'DIAGNOSIS': '主治医生',
+    'REASONING': '推理专家',
+    'CODING': '编码专家'
+  }
+  return nameMap[agentName] || agentName
+}
+
+// 格式化耗时
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const seconds = (ms / 1000).toFixed(2)
+  if (ms < 60000) return `${seconds}s`
+  const minutes = Math.floor(ms / 60000)
+  const remainingSeconds = ((ms % 60000) / 1000).toFixed(0)
+  return `${minutes}m ${remainingSeconds}s`
+}
+
+// 格式化日期时间
+function formatDateTime(isoString: string): string {
+  if (!isoString) return '-'
+  const date = new Date(isoString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
 // 监听抽屉打开状态，加载数据
 watch(() => props.modelValue, (newVal) => {
   if (newVal) {
     loadReport()
+    loadSamples()
+  }
+})
+
+// 监听 Tab 切换，按需加载数据
+watch(activeTab, (newTab) => {
+  if (newTab === 'samples' && samples.value.length === 0) {
+    loadSamples()
+  }
+  if (newTab === 'aiTrace' && !aiTraceData.value) {
+    loadAiTrace()
   }
 })
 </script>
@@ -308,23 +590,43 @@ watch(() => props.modelValue, (newVal) => {
 }
 
 .vital-danger {
-  background: linear-gradient(135deg, #fee 0%, #fdd 100%);
-  border: 1px solid #f56c6c;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid #ef4444;
 }
 
 .vital-warning {
-  background: linear-gradient(135deg, #fef9e7 0%, #fdf5e6 100%);
-  border: 1px solid #e6a23c;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid #f59e0b;
 }
 
 .vital-success {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
-  border: 1px solid #67c23a;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
 }
 
 .vital-info {
-  background: linear-gradient(135deg, #f4f4f5 0%, #e9e9eb 100%);
-  border: 1px solid #909399;
+  background: rgba(107, 114, 128, 0.1);
+  border: 1px solid #6b7280;
+}
+
+[data-theme="dark"] .vital-danger {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #f87171;
+}
+
+[data-theme="dark"] .vital-warning {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #fbbf24;
+}
+
+[data-theme="dark"] .vital-success {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #34d399;
+}
+
+[data-theme="dark"] .vital-info {
+  background: rgba(107, 114, 128, 0.2);
+  border-color: #9ca3af;
 }
 
 /* 卡片样式 */
@@ -342,6 +644,234 @@ watch(() => props.modelValue, (newVal) => {
 /* 响应式 */
 @media (max-width: 768px) {
   .vital-signs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Tab 样式 */
+.detail-tabs {
+  margin-top: 20px;
+}
+
+.tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+/* AI 调用链路样式 - Notion 风格 */
+.ai-trace-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 汇总信息 - 简约风格 */
+.ai-summary-header {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: #e5e7eb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.summary-item {
+  background: white;
+  padding: 20px 16px;
+  text-align: center;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* 时间范围提示 */
+.ai-trace-content .el-alert {
+  border: none;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.ai-trace-content .el-alert__title {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+/* 调用列表 */
+.invocation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invocation-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.invocation-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+/* 序号 - 简约设计 */
+.invocation-number {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  color: #6b7280;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* 主要内容 */
+.invocation-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 标题行 */
+.invocation-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.title-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-code {
+  font-size: 11px;
+  color: #9ca3af;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+/* 详细信息 */
+.invocation-details {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 16px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.detail-label {
+  color: #9ca3af;
+  font-size: 12px;
+  min-width: 50px;
+  font-weight: 400;
+}
+
+.detail-value {
+  color: #374151;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.time-cost {
+  color: #059669;
+  font-weight: 500;
+  font-family: 'SF Mono', 'Monaco', monospace;
+}
+
+/* Token 显示 - 更柔和 */
+.token-input {
+  color: #3b82f6;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.token-separator {
+  color: #d1d5db;
+  margin: 0 3px;
+}
+
+.token-output {
+  color: #10b981;
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.token-total {
+  color: #9ca3af;
+  font-size: 11px;
+  margin-left: 3px;
+  font-weight: 400;
+}
+
+/* 错误信息 */
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fef2f2;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
+}
+
+.error-icon {
+  color: #dc2626;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.error-text {
+  flex: 1;
+  color: #991b1b;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .ai-summary-header {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .invocation-details {
     grid-template-columns: repeat(2, 1fr);
   }
 }

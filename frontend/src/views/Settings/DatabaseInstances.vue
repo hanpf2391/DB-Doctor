@@ -374,7 +374,17 @@ async function handleValidate(row: DatabaseInstance) {
 
   row._validating = true
   try {
-    validateResult.value = await validateDatabaseConnection(row.id)
+    const result = await validateDatabaseConnection(row.id)
+    validateResult.value = result
+
+    // 根据验证结果显示不同的提示
+    if (result.overallPassed) {
+      ElMessage.success('连接测试成功')
+    } else {
+      const failedItems = result.items?.filter(item => !item.passed) || []
+      ElMessage.error(`环境检查未通过：${failedItems.length} 项配置需要修复`)
+    }
+
     validateDialogVisible.value = true
 
     // 刷新列表以更新验证状态

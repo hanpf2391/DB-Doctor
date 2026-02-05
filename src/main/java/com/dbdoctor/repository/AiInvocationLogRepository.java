@@ -2,6 +2,7 @@ package com.dbdoctor.repository;
 
 import com.dbdoctor.entity.AiInvocationLog;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -40,6 +41,16 @@ public interface AiInvocationLogRepository extends JpaRepository<AiInvocationLog
      * @return AI 调用列表
      */
     List<AiInvocationLog> findByTraceIdOrderByStartTimeAsc(String traceId);
+
+    /**
+     * 删除指定 trace_id 的所有旧记录（在插入新记录前调用）
+     *
+     * @param traceId SQL 指纹
+     * @return 删除的记录数
+     */
+    @Modifying
+    @Query("DELETE FROM AiInvocationLog a WHERE a.traceId = :traceId")
+    int deleteByTraceId(@Param("traceId") String traceId);
 
     /**
      * 根据 Agent 角色查询指定时间范围内的调用

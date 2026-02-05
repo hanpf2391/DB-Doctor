@@ -1,7 +1,5 @@
 package com.dbdoctor.service;
 
-import com.dbdoctor.config.AiConfig;
-import com.dbdoctor.config.AiProperties;
 import com.dbdoctor.entity.SystemConfig;
 import com.dbdoctor.model.HotReloadResult;
 import com.dbdoctor.repository.SystemConfigRepository;
@@ -17,7 +15,7 @@ import java.util.stream.Collectors;
  * 系统配置服务实现
  *
  * @author DB-Doctor
- * @version 2.2.0
+ * @version 3.1.0
  */
 @Slf4j
 @Service
@@ -25,7 +23,7 @@ import java.util.stream.Collectors;
 public class ConfigServiceImpl implements ConfigService {
 
     private final SystemConfigRepository configRepo;
-    private final AiConfig aiConfig;
+    private final AiConfigManagementService aiConfigService;
 
     private static final String MASK = "******";
 
@@ -161,69 +159,28 @@ public class ConfigServiceImpl implements ConfigService {
 
     /**
      * 重新加载 AI 配置
+     *
+     * 说明：AI 配置现在通过 AiConfigManagementService 管理，支持自动缓存刷新
+     * AI Bean 在使用时自动从数据库读取最新配置
      */
     private HotReloadResult reloadAiConfig(Map<String, String> configs) {
-        log.info("开始重新加载 AI 配置...");
+        log.info("🔄 开始重新加载 AI 配置...");
 
         try {
-            // 1. 从数据库构建新的配置对象
-            AiProperties newConfig = buildAiConfigFromDb();
-
-            // 2. 调用 AiConfig 刷新 Bean
-            aiConfig.refreshAiConfig(newConfig);
+            // 刷新 AI 配置缓存
+            aiConfigService.refreshCache();
 
             List<String> refreshedBeans = Arrays.asList(
-                    "diagnosisAgent",
-                    "reasoningAgent",
-                    "codingAgent"
+                    "aiConfigCache"
             );
 
-            log.info("AI 配置重新加载成功");
+            log.info("✅ AI 配置缓存刷新成功");
             return HotReloadResult.success(refreshedBeans);
 
         } catch (Exception e) {
-            log.error("AI 配置重新加载失败", e);
+            log.error("❌ AI 配置缓存刷新失败", e);
             return HotReloadResult.needRestart("AI 配置加载失败: " + e.getMessage());
         }
-    }
-
-    /**
-     * 从数据库构建 AI 配置对象
-     */
-    private AiProperties buildAiConfigFromDb() {
-        AiProperties aiProps = new AiProperties();
-
-        // 读取 AI 开关
-        aiProps.setEnabled(Boolean.parseBoolean(getConfig("ai.enabled", "true")));
-
-        // 读取主治医生配置
-        aiProps.setDiagnosis(new AiProperties.AgentConfig(
-                getConfig("ai.diagnosis.provider", "ollama"),
-                getConfig("ai.diagnosis.base-url", "http://localhost:11434"),
-                getConfig("ai.diagnosis.model-name", "qwen2.5:7b"),
-                Double.parseDouble(getConfig("ai.diagnosis.temperature", "0.0")),
-                getConfig("ai.diagnosis.api-key", "")
-        ));
-
-        // 读取推理专家配置
-        aiProps.setReasoning(new AiProperties.AgentConfig(
-                getConfig("ai.reasoning.provider", "ollama"),
-                getConfig("ai.reasoning.base-url", "http://localhost:11434"),
-                getConfig("ai.reasoning.model-name", "qwen2.5:7b"),
-                Double.parseDouble(getConfig("ai.reasoning.temperature", "0.0")),
-                getConfig("ai.reasoning.api-key", "")
-        ));
-
-        // 读取编码专家配置
-        aiProps.setCoding(new AiProperties.AgentConfig(
-                getConfig("ai.coding.provider", "ollama"),
-                getConfig("ai.coding.base-url", "http://localhost:11434"),
-                getConfig("ai.coding.model-name", "qwen2.5-coder:7b"),
-                Double.parseDouble(getConfig("ai.coding.temperature", "0.0")),
-                getConfig("ai.coding.api-key", "")
-        ));
-
-        return aiProps;
     }
 
     /**

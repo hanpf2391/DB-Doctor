@@ -34,14 +34,14 @@ public class DatabaseInstanceController {
     private final DatabaseInstanceService service;
 
     /**
-     * 获取所有数据库实例
+     * 获取所有数据库实例（包括禁用的）
      *
      * @return 实例列表
      */
     @GetMapping
     public Result<List<DatabaseInstance>> findAll() {
         log.info("API调用: 获取所有数据库实例");
-        List<DatabaseInstance> instances = service.findAllEnabled();
+        List<DatabaseInstance> instances = service.findAll();
         return Result.success(instances);
     }
 

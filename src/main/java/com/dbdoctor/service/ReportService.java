@@ -180,6 +180,67 @@ public class ReportService {
     }
 
     /**
+     * 获取慢查询样本列表（分页）- 🆕
+     *
+     * @param templateId 模板 ID
+     * @param page 页码（从 1 开始）
+     * @param size 每页数量
+     * @return 样本列表
+     */
+    public Map<String, Object> getSamples(Long templateId, int page, int size) {
+        log.info("查询样本列表: templateId={}, page={}, size={}", templateId, page, size);
+
+        // 查询模板是否存在
+        SlowQueryTemplate template = templateRepository.findById(templateId)
+                .orElseThrow(() -> new IllegalArgumentException("慢查询模板不存在: " + templateId));
+
+        // 分页查询样本
+        org.springframework.data.domain.Pageable pageable =
+                org.springframework.data.domain.PageRequest.of(page - 1, size,
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC,
+                                "capturedAt"
+                        )
+                );
+
+        org.springframework.data.domain.Page<com.dbdoctor.entity.SlowQuerySample> samplePage =
+                sampleRepository.findBySqlFingerprintOrderByCapturedAt(
+                        template.getSqlFingerprint(),
+                        pageable
+                );
+
+        // 转换为 DTO
+        var records = samplePage.getContent().stream()
+                .map(this::convertSampleToDto)
+                .toList();
+
+        return Map.of(
+                "total", samplePage.getTotalElements(),
+                "page", page,
+                "size", size,
+                "records", records
+        );
+    }
+
+    /**
+     * 转换样本实体为 DTO
+     */
+    private Map<String, Object> convertSampleToDto(com.dbdoctor.entity.SlowQuerySample sample) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", sample.getId());
+        dto.put("capturedAt", sample.getCapturedAt() != null
+                ? sample.getCapturedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                : "");
+        dto.put("userHost", sample.getUserHost() != null ? sample.getUserHost() : "");
+        dto.put("queryTime", sample.getQueryTime() != null ? sample.getQueryTime() : 0.0);
+        dto.put("lockTime", sample.getLockTime() != null ? sample.getLockTime() : 0.0);
+        dto.put("rowsSent", sample.getRowsSent() != null ? sample.getRowsSent() : 0L);
+        dto.put("rowsExamined", sample.getRowsExamined() != null ? sample.getRowsExamined() : 0L);
+        dto.put("originalSql", sample.getOriginalSql() != null ? sample.getOriginalSql() : "");
+        return dto;
+    }
+
+    /**
      * 获取慢查询趋势数据（按小时统计）
      *
      * @param date 日期（yyyy-MM-dd）

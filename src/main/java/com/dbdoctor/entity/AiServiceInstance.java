@@ -56,6 +56,14 @@ public class AiServiceInstance {
     private String provider;
 
     /**
+     * 部署类型
+     * local: 本地部署（Ollama、LM Studio 等）
+     * cloud: 云端API（OpenAI、DeepSeek、Anthropic 等）
+     */
+    @Column(name = "deployment_type", nullable = false, length = 20)
+    private String deploymentType = DeploymentType.CLOUD.getValue(); // 默认为云端部署
+
+    /**
      * API基础URL
      */
     @Column(name = "base_url", length = 500)
@@ -109,7 +117,8 @@ public class AiServiceInstance {
      * 是否已验证连接
      */
     @Column(name = "is_valid", nullable = false)
-    private Boolean isValid;
+    @Builder.Default
+    private Boolean isValid = false;
 
     /**
      * 最后验证时间
@@ -127,13 +136,15 @@ public class AiServiceInstance {
      * 是否启用
      */
     @Column(name = "is_enabled", nullable = false)
-    private Boolean isEnabled;
+    @Builder.Default
+    private Boolean isEnabled = true;
 
     /**
      * 是否为默认实例
      */
     @Column(name = "is_default", nullable = false)
-    private Boolean isDefault;
+    @Builder.Default
+    private Boolean isDefault = false;
 
     /**
      * 创建人
@@ -177,6 +188,30 @@ public class AiServiceInstance {
 
         public String getValue() {
             return value;
+        }
+    }
+
+    /**
+     * 部署类型枚举
+     */
+    public enum DeploymentType {
+        LOCAL("local", "本地部署"),
+        CLOUD("cloud", "云端API");
+
+        private final String value;
+        private final String label;
+
+        DeploymentType(String value, String label) {
+            this.value = value;
+            this.label = label;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public String getLabel() {
+            return label;
         }
     }
 }

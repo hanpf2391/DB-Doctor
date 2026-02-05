@@ -1,7 +1,10 @@
 package com.dbdoctor.config;
 
 import com.dbdoctor.check.MySqlEnvChecker;
+import com.dbdoctor.common.util.EncryptionService;
+import com.dbdoctor.entity.DatabaseInstance;
 import com.dbdoctor.model.EnvCheckReport;
+import com.dbdoctor.repository.DatabaseInstanceRepository;
 import com.dbdoctor.service.SystemConfigService;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,8 @@ public class DynamicDataSourceManager {
 
     private final SystemConfigService configService;
     private final MySqlEnvChecker envChecker;
+    private final DatabaseInstanceRepository databaseInstanceRepository;
+    private final EncryptionService encryptionService;
 
     /**
      * 动态数据源的原子引用（线程安全）
@@ -49,10 +54,16 @@ public class DynamicDataSourceManager {
         log.info("🔄 [动态数据源] 开始从数据库读取目标数据库配置...");
 
         try {
-            // 从 H2 数据库读取配置
-            String url = configService.getDecryptedValue("database.url");
-            String username = configService.getDecryptedValue("database.username");
-            String password = configService.getDecryptedValue("database.password");
+            // 从数据库读取配置（支持两种方式）
+            DatabaseConfig config = loadDatabaseConfig();
+            if (config == null) {
+                log.warn("⚠️  [动态数据源] 无法加载数据库配置，目标数据源未初始化");
+                return null;
+            }
+
+            String url = config.url;
+            String username = config.username;
+            String password = config.password;
 
             // 验证必需配置
             if (url == null || url.trim().isEmpty()) {
@@ -147,14 +158,46 @@ public class DynamicDataSourceManager {
         }
 
         try {
-            // 1. 读取新配置
-            String url = configService.getDecryptedValue("database.url");
-            String username = configService.getDecryptedValue("database.username");
-            String password = configService.getDecryptedValue("database.password");
+            // 1. 读取新配置（支持两种方式：database_instances 表或 system_config 表）
+            String url, username, password;
 
-            if (url == null || url.trim().isEmpty()) {
-                log.error("❌ [动态数据源] database.url 配置为空");
-                return false;
+            // 优先从 database_instances 表读取（新功能）
+            String instanceIdStr = configService.getString("database.instance_id");
+            if (instanceIdStr != null && !instanceIdStr.trim().isEmpty()) {
+                try {
+                    Long instanceId = Long.parseLong(instanceIdStr);
+                    DatabaseInstance instance = databaseInstanceRepository.findById(instanceId).orElse(null);
+
+                    if (instance != null) {
+                        log.info("📋 [动态数据源] 从数据库实例加载配置: {}", instance.getInstanceName());
+                        url = instance.getUrl();
+                        username = instance.getUsername();
+                        // 直接使用加密密码（checkFully 内部会解密）
+                        password = instance.getPassword();
+
+                        if (url == null || url.trim().isEmpty()) {
+                            log.error("❌ [动态数据源] 数据库实例的 URL 为空: id={}", instanceId);
+                            return false;
+                        }
+                    } else {
+                        log.error("❌ [动态数据源] 数据库实例不存在: id={}", instanceId);
+                        return false;
+                    }
+                } catch (NumberFormatException e) {
+                    log.error("❌ [动态数据源] database.instance_id 格式错误: {}", instanceIdStr);
+                    return false;
+                }
+            } else {
+                // 兼容旧方式：从 system_config 表读取（获取加密值）
+                log.info("📋 [动态数据源] 从 system_config 表加载配置");
+                url = configService.getString("database.url");
+                username = configService.getString("database.username");
+                password = configService.getString("database.password"); // 获取加密值，不解密
+
+                if (url == null || url.trim().isEmpty()) {
+                    log.error("❌ [动态数据源] database.url 配置为空");
+                    return false;
+                }
             }
 
             // 2. 进行环境检查（热更新前强制检查）
@@ -228,6 +271,66 @@ public class DynamicDataSourceManager {
      */
     public boolean isInitialized() {
         return targetDataSource.get() != null;
+    }
+
+    /**
+     * 从数据库加载配置（支持两种方式）
+     * 1. 优先从 database_instances 表读取（新功能）
+     * 2. 兼容从 system_config 表读取（旧功能）
+     *
+     * @return 数据库配置，如果无法加载则返回 null
+     */
+    private DatabaseConfig loadDatabaseConfig() {
+        // 优先从 database_instances 表读取（新功能）
+        String instanceIdStr = configService.getString("database.instance_id");
+        if (instanceIdStr != null && !instanceIdStr.trim().isEmpty()) {
+            try {
+                Long instanceId = Long.parseLong(instanceIdStr);
+                DatabaseInstance instance = databaseInstanceRepository.findById(instanceId).orElse(null);
+
+                if (instance != null) {
+                    log.info("📋 [动态数据源] 从数据库实例加载配置: {}", instance.getInstanceName());
+                    // 解密密码（用于创建数据源）
+                    String encryptedPassword = instance.getPassword();
+                    String password = encryptedPassword != null ? encryptionService.decrypt(encryptedPassword) : null;
+
+                    return new DatabaseConfig(instance.getUrl(), instance.getUsername(), password);
+                } else {
+                    log.error("❌ [动态数据源] 数据库实例不存在: id={}", instanceId);
+                    return null;
+                }
+            } catch (NumberFormatException e) {
+                log.error("❌ [动态数据源] database.instance_id 格式错误: {}", instanceIdStr);
+                return null;
+            }
+        }
+
+        // 兼容旧方式：从 system_config 表读取
+        log.info("📋 [动态数据源] 从 system_config 表加载配置");
+        String url = configService.getDecryptedValue("database.url");
+        String username = configService.getDecryptedValue("database.username");
+        String password = configService.getDecryptedValue("database.password");
+
+        if (url != null && !url.trim().isEmpty()) {
+            return new DatabaseConfig(url, username, password);
+        }
+
+        return null;
+    }
+
+    /**
+     * 数据库配置封装类
+     */
+    private static class DatabaseConfig {
+        final String url;
+        final String username;
+        final String password;
+
+        DatabaseConfig(String url, String username, String password) {
+            this.url = url;
+            this.username = username;
+            this.password = password;
+        }
     }
 
     /**

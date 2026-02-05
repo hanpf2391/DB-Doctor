@@ -71,6 +71,13 @@ db-doctor:
   build-time: @maven.build.timestamp@
   description: MySQL 慢查询智能诊疗系统（企业级异常处理）
 
+  # === 认证配置 ===
+  auth:
+    # 默认用户名（首次登录使用，登录后可在设置中修改）
+    default-username: dbdoctor
+    # 默认密码（首次登录使用，登录后可在设置中修改）
+    default-password: dbdoctor
+
 # Git 信息由 git-commit-id-plugin 自动生成，无需手动配置
 
   # === 用户目标数据源配置（MySQL） ===
@@ -81,67 +88,7 @@ db-doctor:
     driver-class-name: com.mysql.cj.jdbc.Driver
     # username 和 password 在 application-local.yml 中配置
 
-  # === 环境检查配置 ===
-  # 用途：项目启动时检查目标 MySQL 的慢查询配置是否符合要求
-  env-check:
-    # 是否启用环境检查（推荐启用）
-    enabled: false
-    # 检查失败时是否阻止应用启动（false=只记录警告，true=启动失败）
-    fail-on-error: false
-    # 是否尝试自动修复问题（需要 SUPER 权限，不推荐）
-    auto-fix: false
 
-  # AI 配置
-  ai:
-    enabled: false  # 设置为 true 启用 AI 功能
-    mock-enabled: false  # 【测试模式】启用 Mock AI 模拟耗时
-    mock-delay-seconds: 30  # 【测试模式】模拟耗时（秒）
-    # 一次分析的最大日志数量（防止过载）
-    # 验证范围：1-50
-    max-concurrent-analysis: 4
-
-    # === v2.3.2 成本分析配置 ===
-    cost:
-      # 模型定价配置（美元/百万 Token）
-      # 参考：OpenAI、DeepSeek 等官方定价
-      model-pricing:
-        # OpenAI 定价（2024年）
-        gpt-4o:
-          input-price: 5.0
-          output-price: 15.0
-          provider: openai
-        gpt-4o-mini:
-          input-price: 0.15
-          output-price: 0.60
-          provider: openai
-        gpt-4:
-          input-price: 30.0
-          output-price: 60.0
-          provider: openai
-
-        # DeepSeek 定价
-        deepseek-chat:
-          input-price: 0.14
-          output-price: 0.28
-          provider: deepseek
-        deepseek-r1:
-          input-price: 0.55
-          output-price: 2.19
-          provider: deepseek
-
-        # Ollama 本地模型（免费）
-        qwen:
-          input-price: 0.0
-          output-price: 0.0
-          provider: ollama
-        qwen2.5:
-          input-price: 0.0
-          output-price: 0.0
-          provider: ollama
-        llama:
-          input-price: 0.0
-          output-price: 0.0
-          provider: ollama
 
   # 慢查询监控配置
   slow-log-monitor:

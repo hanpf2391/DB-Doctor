@@ -38,7 +38,7 @@
         <el-card class="stat-card">
           <div class="stat-content">
             <div class="stat-icon total-cost">
-              <el-icon><Wallet /></el-icon>
+              <el-icon><Van /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-label">总成本</div>
@@ -64,7 +64,7 @@
         <el-card class="stat-card">
           <div class="stat-content">
             <div class="stat-icon calls">
-              <el-icon><DataAnalysis /></el-icon>
+              <el-icon><PieChart /></el-icon>
             </div>
             <div class="stat-info">
               <div class="stat-label">总调用次数</div>
@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, RefreshLeft, Wallet, Coin, DataAnalysis, TrendCharts } from '@element-plus/icons-vue'
+import { Search, RefreshLeft, Van, Coin, PieChart, TrendCharts } from '@element-plus/icons-vue'
 import { getCostStats } from '@/api/ai-monitor'
 import type { CostStats } from './types'
 import * as echarts from 'echarts'

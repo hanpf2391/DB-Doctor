@@ -62,9 +62,9 @@ public class EncryptionService {
     }
 
     /**
-     * 解密字符串
+     * 解密字符串（容错模式：兼容明文密码）
      *
-     * @param cipherText Base64 编码的密文
+     * @param cipherText Base64 编码的密文或明文（向后兼容）
      * @return 明文
      */
     public String decrypt(String cipherText) {
@@ -82,9 +82,14 @@ public class EncryptionService {
 
             byte[] decryptedBytes = cipher.doFinal(Base64.getDecoder().decode(cipherText));
             return new String(decryptedBytes, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            // Base64 解码失败，说明可能是明文密码（向后兼容旧数据）
+            log.warn("⚠️  Base64 解码失败，视为明文密码: {}", e.getMessage());
+            return cipherText;
         } catch (Exception e) {
-            log.error("解密失败", e);
-            throw new RuntimeException("解密失败: " + e.getMessage(), e);
+            // 其他解密错误，记录日志并返回原值（容错处理）
+            log.error("❌ 解密失败，返回原值（可能是明文密码或损坏的数据）: {}", e.getMessage());
+            return cipherText;
         }
     }
 

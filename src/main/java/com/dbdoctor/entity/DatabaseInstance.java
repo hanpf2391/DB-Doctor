@@ -96,7 +96,8 @@ public class DatabaseInstance {
      * 是否已验证连接
      */
     @Column(name = "is_valid", nullable = false)
-    private Boolean isValid;
+    @Builder.Default
+    private Boolean isValid = false;
 
     /**
      * 最后验证时间
@@ -114,13 +115,15 @@ public class DatabaseInstance {
      * 是否启用
      */
     @Column(name = "is_enabled", nullable = false)
-    private Boolean isEnabled;
+    @Builder.Default
+    private Boolean isEnabled = true;
 
     /**
      * 是否为默认实例
      */
     @Column(name = "is_default", nullable = false)
-    private Boolean isDefault;
+    @Builder.Default
+    private Boolean isDefault = false;
 
     /**
      * 创建人

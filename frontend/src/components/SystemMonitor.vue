@@ -193,7 +193,7 @@ onUnmounted(() => {
 .percentage-label {
   display: block;
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
   margin-top: 4px;
 }
 
@@ -206,5 +206,14 @@ h4 {
   margin: 20px 0 10px;
   font-size: 16px;
   font-weight: bold;
+  color: var(--color-text-primary);
+}
+
+[data-theme="dark"] h4 {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .percentage-label {
+  color: #a3a3a3;
 }
 </style>

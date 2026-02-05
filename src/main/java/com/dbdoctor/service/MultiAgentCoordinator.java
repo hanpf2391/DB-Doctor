@@ -10,6 +10,8 @@ import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.AnalysisContext;
 import com.dbdoctor.model.ToolResult;
 import com.dbdoctor.monitoring.AiContextHolder;
+import com.dbdoctor.service.AiConfigManagementService;
+import com.dbdoctor.service.AiInvocationLogService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +54,8 @@ public class MultiAgentCoordinator {
     private final CircuitBreaker circuitBreaker;    // 熔断器
     private final ObjectMapper objectMapper;
     private final PromptUtil promptUtil;            // 提示词工具
+    private final AiConfigManagementService aiConfigService; // AI 配置服务
+    private final AiInvocationLogService aiInvocationLogService; // AI 调用日志服务
 
     /**
      * 分析慢查询（多 Agent 协作）
@@ -64,6 +68,10 @@ public class MultiAgentCoordinator {
         long startTime = System.currentTimeMillis();
 
         try {
+            // === 第0步：清理上次分析的旧记录 ===
+            String traceId = context.getSqlFingerprint();
+            aiInvocationLogService.cleanByTraceId(traceId);
+
             // === 第一步：主治医生初步诊断 ===
             log.info("🔍 步骤 1：主治医生初步诊断");
             String diagnosisReport = performDiagnosis(context);
@@ -130,6 +138,10 @@ public class MultiAgentCoordinator {
             // 设置监控元数据（使用 ThreadLocal 传递）
             AiContextHolder.setAgentName(AgentName.DIAGNOSIS.getCode());
             AiContextHolder.setTraceId(context.getSqlFingerprint());
+
+            // 🔧 获取并设置模型名称（用于监控显示）
+            String diagnosisModelName = aiConfigService.getDiagnosisModelName();
+            AiContextHolder.setModelName(diagnosisModelName);
 
             // 🆕 设置 Prompt（用于 Token 估算）
             AiContextHolder.setPrompt(formattedPrompt);
@@ -263,6 +275,10 @@ public class MultiAgentCoordinator {
             AiContextHolder.setAgentName(AgentName.REASONING.getCode());
             AiContextHolder.setTraceId(context.getSqlFingerprint());
 
+            // 🔧 获取并设置模型名称（用于监控显示）
+            String reasoningModelName = aiConfigService.getReasoningModelName();
+            AiContextHolder.setModelName(reasoningModelName);
+
             // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
             String formattedPrompt = String.format(
                 "请基于主治医生的诊断报告，进行深度推理分析：\n\n" +
@@ -361,6 +377,10 @@ public class MultiAgentCoordinator {
             // 设置监控元数据（使用 ThreadLocal 传递）
             AiContextHolder.setAgentName(AgentName.CODING.getCode());
             AiContextHolder.setTraceId(context.getSqlFingerprint());
+
+            // 🔧 获取并设置模型名称（用于监控显示）
+            String codingModelName = aiConfigService.getCodingModelName();
+            AiContextHolder.setModelName(codingModelName);
 
             // 🔧 手动格式化提示词（解决 LangChain4j 占位符替换问题）
             String formattedPrompt = String.format(

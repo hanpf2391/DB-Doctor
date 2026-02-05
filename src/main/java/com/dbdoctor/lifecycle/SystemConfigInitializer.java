@@ -88,15 +88,37 @@ public class SystemConfigInitializer implements ApplicationRunner {
             true, false, 4, "textarea", "[\"db1\", \"db2\", \"db3\"]"
         );
 
+        // 数据库实例ID（基础设置用）
+        createConfigIfNotExists(
+            "database.instance_id", "database", "number",
+            null, null,
+            "数据库实例ID", "当前使用的数据库实例ID",
+            false, false, 5, "number", "数据库实例ID"
+        );
+
+        // 数据库实例名称（基础设置用）
+        createConfigIfNotExists(
+            "database.instance_name", "database", "string",
+            null, null,
+            "数据库实例名称", "当前使用的数据库实例名称",
+            false, false, 6, "text", "数据库实例名称"
+        );
+
         log.info("✅ 数据库配置初始化完成");
     }
 
     /**
      * 初始化 AI 配置
+     *
+     * 配置策略：
+     * - 使用 ai_service_instance 表存储实例配置
+     * - system_config 只存储实例ID引用
+     * - 旧配置方式（直接存储 provider、base_url 等）已废弃
      */
     private void initAiConfigs() {
         log.info("📝 初始化 AI 配置分组...");
 
+        // AI 启用开关
         createConfigIfNotExists(
             "ai.enabled", "ai", "boolean",
             "false", "false",
@@ -104,77 +126,97 @@ public class SystemConfigInitializer implements ApplicationRunner {
             false, false, 1, "boolean", null
         );
 
+        // AI 服务实例配置（新方式）
         createConfigIfNotExists(
-            "ai.provider", "ai", "string",
-            "ollama", "ollama",
-            "AI 服务提供商", "AI 服务提供商（openai/ollama）",
-            false, false, 2, "select", "ollama"
-        );
-
-        createConfigIfNotExists(
-            "ai.api_key", "ai", "password",
+            "ai.diagnosis.instance_id", "ai", "number",
             null, "",
-            "API Key", "OpenAI/Ollama API 密钥",
-            true, true, 3, "password", "sk-..."
+            "主治医生实例ID", "主治医生AI Agent使用的服务实例ID",
+            false, false, 20, "number", "AI服务实例ID"
         );
 
         createConfigIfNotExists(
-            "ai.base_url", "ai", "string",
-            "http://localhost:11434", "http://localhost:11434",
-            "API Base URL", "AI 服务的基础 URL",
-            true, false, 4, "text", "http://localhost:11434"
+            "ai.diagnosis.instance_name", "ai", "string",
+            null, "",
+            "主治医生实例名称", "主治医生AI Agent使用的服务实例名称",
+            false, false, 21, "text", "AI服务实例名称"
         );
 
         createConfigIfNotExists(
-            "ai.timeout_seconds", "ai", "number",
-            "60", "60",
-            "API 超时时间（秒）", "AI API 调用超时时间",
-            false, false, 5, "number", "60"
-        );
-
-        // 主治医生
-        createConfigIfNotExists(
-            "ai.diagnosis.model_name", "ai", "string",
-            "qwen2.5:7b", "qwen2.5:7b",
-            "主治医生模型", "用于慢查询诊断的 AI 模型",
-            true, false, 10, "text", "qwen2.5:7b"
+            "ai.reasoning.instance_id", "ai", "number",
+            null, "",
+            "推理专家实例ID", "推理专家AI Agent使用的服务实例ID",
+            false, false, 22, "number", "AI服务实例ID"
         );
 
         createConfigIfNotExists(
-            "ai.diagnosis.temperature", "ai", "number",
-            "0.1", "0.1",
-            "主治医生温度参数", "控制生成内容的随机性（0-1）",
-            false, false, 11, "number", "0.1"
-        );
-
-        // 推理专家
-        createConfigIfNotExists(
-            "ai.reasoning.model_name", "ai", "string",
-            "deepseek-r1:7b", "deepseek-r1:7b",
-            "推理专家模型", "用于深度推理分析的 AI 模型",
-            true, false, 12, "text", "deepseek-r1:7b"
+            "ai.reasoning.instance_name", "ai", "string",
+            null, "",
+            "推理专家实例名称", "推理专家AI Agent使用的服务实例名称",
+            false, false, 23, "text", "AI服务实例名称"
         );
 
         createConfigIfNotExists(
-            "ai.reasoning.temperature", "ai", "number",
-            "0.3", "0.3",
-            "推理专家温度参数", "控制生成内容的随机性（0-1）",
-            false, false, 13, "number", "0.3"
-        );
-
-        // 编码专家
-        createConfigIfNotExists(
-            "ai.coding.model_name", "ai", "string",
-            "deepseek-coder:6.7b", "deepseek-coder:6.7b",
-            "编码专家模型", "用于生成 SQL 优化建议的 AI 模型",
-            true, false, 14, "text", "deepseek-coder:6.7b"
+            "ai.coding.instance_id", "ai", "number",
+            null, "",
+            "编码专家实例ID", "编码专家AI Agent使用的服务实例ID",
+            false, false, 24, "number", "AI服务实例ID"
         );
 
         createConfigIfNotExists(
-            "ai.coding.temperature", "ai", "number",
-            "0.2", "0.2",
-            "编码专家温度参数", "控制生成内容的随机性（0-1）",
-            false, false, 15, "number", "0.2"
+            "ai.coding.instance_name", "ai", "string",
+            null, "",
+            "编码专家实例名称", "编码专家AI Agent使用的服务实例名称",
+            false, false, 25, "text", "AI服务实例名称"
+        );
+
+        // ============ 基础设置使用的实例配置 ============
+
+        // 主治医生 - 实例ID
+        createConfigIfNotExists(
+            "ai.diagnosis.instance_id", "ai", "number",
+            null, null,
+            "主治医生实例ID", "主治医生AI Agent使用的服务实例ID",
+            false, false, 20, "number", "AI服务实例ID"
+        );
+
+        // 主治医生 - 实例名称
+        createConfigIfNotExists(
+            "ai.diagnosis.instance_name", "ai", "string",
+            null, null,
+            "主治医生实例名称", "主治医生AI Agent使用的服务实例名称",
+            false, false, 21, "text", "AI服务实例名称"
+        );
+
+        // 推理专家 - 实例ID
+        createConfigIfNotExists(
+            "ai.reasoning.instance_id", "ai", "number",
+            null, null,
+            "推理专家实例ID", "推理专家AI Agent使用的服务实例ID",
+            false, false, 22, "number", "AI服务实例ID"
+        );
+
+        // 推理专家 - 实例名称
+        createConfigIfNotExists(
+            "ai.reasoning.instance_name", "ai", "string",
+            null, null,
+            "推理专家实例名称", "推理专家AI Agent使用的服务实例名称",
+            false, false, 23, "text", "AI服务实例名称"
+        );
+
+        // 编码专家 - 实例ID
+        createConfigIfNotExists(
+            "ai.coding.instance_id", "ai", "number",
+            null, null,
+            "编码专家实例ID", "编码专家AI Agent使用的服务实例ID",
+            false, false, 24, "number", "AI服务实例ID"
+        );
+
+        // 编码专家 - 实例名称
+        createConfigIfNotExists(
+            "ai.coding.instance_name", "ai", "string",
+            null, null,
+            "编码专家实例名称", "编码专家AI Agent使用的服务实例名称",
+            false, false, 25, "text", "AI服务实例名称"
         );
 
         log.info("✅ AI 配置初始化完成");

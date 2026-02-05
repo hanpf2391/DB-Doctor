@@ -14,7 +14,7 @@
           查看分析详情
         </el-button>
         <el-button type="warning" @click="goToCostAnalysis">
-          <el-icon><Wallet /></el-icon>
+          <el-icon><Van /></el-icon>
           成本分析
         </el-button>
         <el-button type="success" @click="refreshData" :loading="loading">
@@ -22,7 +22,7 @@
           刷新数据
         </el-button>
         <el-button type="info" @click="exportData">
-          <el-icon><Download /></el-icon>
+          <el-icon><Bottom /></el-icon>
           导出数据
         </el-button>
       </el-space>
@@ -34,7 +34,7 @@
         <el-card class="stat-card" shadow="hover">
           <el-statistic title="总调用次数" :value="stats.totalCalls">
             <template #suffix>
-              <el-icon><DataAnalysis /></el-icon>
+              <el-icon><PieChartIcon /></el-icon>
             </template>
           </el-statistic>
         </el-card>
@@ -134,7 +134,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, View, Refresh, Download, Wallet } from '@element-plus/icons-vue'
+import { PieChart as PieChartIcon, View, Refresh, Bottom, Van } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -503,7 +503,11 @@ onMounted(() => {
 
 .actions-card {
   margin-bottom: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #ffffff 100%);
+  background: var(--color-bg-page);
+}
+
+[data-theme="dark"] .actions-card {
+  background: #0a0a0a;
 }
 
 .actions-card :deep(.el-card__body) {

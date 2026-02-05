@@ -1,0 +1,24 @@
+spring:
+  # 测试环境使用内存 H2 数据库
+  datasource:
+    url: jdbc:h2:mem:test-db;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # 每次测试都重新创建表
+    show-sql: false
+    database-platform: org.hibernate.dialect.H2Dialect
+
+db-doctor:
+  auth:
+    default-username: admin
+    default-password: admin123
+
+logging:
+  level:
+    com.dbdoctor: DEBUG

@@ -103,6 +103,40 @@ public class ReportController {
     }
 
     /**
+     * 获取慢查询样本列表 - 🆕
+     *
+     * @param id 模板 ID
+     * @param page 页码（从 1 开始，默认 1）
+     * @param size 每页数量（默认 20）
+     * @return 样本列表
+     */
+    @GetMapping("/{id}/samples")
+    public Map<String, Object> getSamples(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size
+    ) {
+        log.info("查询慢查询样本列表: id={}, page={}, size={}", id, page, size);
+
+        try {
+            Map<String, Object> result = reportService.getSamples(id, page, size);
+
+            return Map.of(
+                    "code", 200,
+                    "message", "success",
+                    "data", result
+            );
+        } catch (Exception e) {
+            log.error("查询样本列表失败: id={}", id, e);
+            return Map.of(
+                    "code", 500,
+                    "message", "查询失败: " + e.getMessage(),
+                    "data", null
+            );
+        }
+    }
+
+    /**
      * 获取慢查询趋势数据（按小时统计）
      *
      * @param date 日期（yyyy-MM-dd）

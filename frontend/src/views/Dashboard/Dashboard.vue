@@ -132,7 +132,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Document, TrendCharts, Warning, Clock, View, Setting, Refresh } from '@element-plus/icons-vue'
+import { Collection, Document, DataLine, Warning, Clock, View, Setting, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import type { EChartsOption } from 'echarts'
 import { getTodayOverview, getTrend, getTopSlow } from '@/api/dashboard'
@@ -399,6 +399,7 @@ onMounted(() => {
 }
 
 .stats-row {
+  margin-top: 24px;
   margin-bottom: 20px;
 }
 

@@ -3,6 +3,7 @@
  */
 
 export interface ConfigData {
+  configs?: Record<string, string>
   targetDb?: DbConfig
   ai?: AiConfig
   monitor?: MonitorConfig
@@ -54,3 +55,36 @@ export interface SaveConfigResponse {
   requiresRestart: boolean
   refreshedBeans: string[]
 }
+
+/**
+ * 认证类型定义
+ */
+
+// 登录请求
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+// 登录响应
+export interface LoginResponse {
+  username: string
+  token: string
+  loginTime: string
+}
+
+// 修改密码请求
+export interface ChangePasswordRequest {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+  newUsername?: string  // 可选，不修改用户名时不传
+}
+
+// API 统一响应格式
+export interface ApiResponse<T = any> {
+  code: number
+  message: string
+  data: T
+}
+

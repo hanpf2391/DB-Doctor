@@ -27,6 +27,13 @@ public interface DatabaseInstanceRepository extends JpaRepository<DatabaseInstan
     Optional<DatabaseInstance> findByInstanceName(String instanceName);
 
     /**
+     * 查询所有实例（默认实例优先，按创建时间倒序）
+     *
+     * @return 所有实例列表
+     */
+    List<DatabaseInstance> findAllByOrderByIsDefaultDescCreatedAtDesc();
+
+    /**
      * 查询所有启用的实例（默认实例优先，按创建时间倒序）
      *
      * @return 启用的实例列表

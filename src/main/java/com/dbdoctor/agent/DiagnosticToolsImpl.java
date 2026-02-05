@@ -113,7 +113,7 @@ public class DiagnosticToolsImpl implements DiagnosticTools {
     /**
      * 获取执行计划
      *
-     * @param database 数据库名
+     * @param database 数据库名（可为空，会自动从 SQL 提取）
      * @param sql      SQL 语句
      * @return ToolResult - 成功时 data 字段包含 EXPLAIN 结果（JSON 格式）
      */
@@ -126,11 +126,18 @@ public class DiagnosticToolsImpl implements DiagnosticTools {
             log.info("🔧 [工具调用] 获取执行计划: database={}, sql={}", database, sql);
 
             // 参数校验
-            if (database == null || database.trim().isEmpty()) {
-                return ToolResult.failure(ErrorCode.DB_NOT_FOUND, "数据库名称不能为空");
-            }
             if (sql == null || sql.trim().isEmpty()) {
                 return ToolResult.failure(ErrorCode.SYNTAX_ERROR, "SQL 语句不能为空");
+            }
+
+            // 如果 database 为空，尝试从 SQL 中提取
+            if (database == null || database.trim().isEmpty()) {
+                database = extractDatabaseFromSql(sql);
+                if (database == null || database.trim().isEmpty()) {
+                    return ToolResult.failure(ErrorCode.DB_NOT_FOUND,
+                        "无法从 SQL 中提取数据库名，且未提供 database 参数。SQL: " + sql.substring(0, Math.min(100, sql.length())));
+                }
+                log.info("🔍 [自动提取] 从 SQL 中提取数据库名: {}", database);
             }
 
             // 数据库名称安全验证(防止 SQL 注入)
@@ -263,7 +270,7 @@ public class DiagnosticToolsImpl implements DiagnosticTools {
                         INDEX_NAME as index_name,
                         COLUMN_NAME as column_name,
                         CARDINALITY as cardinality,
-                        SUBPART as subpart,
+                        SUB_PART as sub_part,
                         NULLABLE as nullable,
                         INDEX_TYPE as index_type
                     FROM information_schema.STATISTICS
@@ -475,5 +482,84 @@ public class DiagnosticToolsImpl implements DiagnosticTools {
 
         // 默认返回语法错误
         return ErrorCode.SYNTAX_ERROR;
+    }
+
+    /**
+     * 从 SQL 语句中提取数据库名
+     * 支持格式：database.table 或 `database`.`table`
+     *
+     * @param sql SQL 语句
+     * @return 数据库名，如果无法提取则返回 null
+     */
+    private String extractDatabaseFromSql(String sql) {
+        if (sql == null || sql.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+            // 转大写并移除多余空格，便于解析
+            String normalizedSql = sql.toUpperCase().replaceAll("\\s+", " ");
+
+            // 查找 FROM 子句的位置
+            int fromIndex = normalizedSql.indexOf(" FROM ");
+            if (fromIndex == -1) {
+                // 如果没有 FROM，尝试查找 UPDATE
+                fromIndex = normalizedSql.indexOf(" UPDATE ");
+                if (fromIndex == -1) {
+                    // 如果也没有 UPDATE，尝试查找 INSERT INTO
+                    fromIndex = normalizedSql.indexOf(" INTO ");
+                    if (fromIndex == -1) {
+                        return null;
+                    }
+                    fromIndex += 6; // " INTO ".length()
+                } else {
+                    fromIndex += 7; // " UPDATE ".length()
+                }
+            } else {
+                fromIndex += 6; // " FROM ".length()
+            }
+
+            // 提取 FROM/UPDATE/INTO 之后的部分（到下一个关键字之前）
+            String afterFrom = normalizedSql.substring(fromIndex).trim();
+
+            // 查找第一个表引用（可能带有数据库名前缀）
+            // 匹配模式：`database`.`table` 或 database.table 或 table
+            String firstTableRef;
+            int spaceIndex = afterFrom.indexOf(' ');
+            int commaIndex = afterFrom.indexOf(',');
+            int joinIndex = afterFrom.indexOf(" JOIN ");
+
+            // 取最近的分隔符
+            int endIndex = afterFrom.length();
+            if (spaceIndex > 0 && spaceIndex < endIndex) endIndex = spaceIndex;
+            if (commaIndex > 0 && commaIndex < endIndex) endIndex = commaIndex;
+            if (joinIndex > 0 && joinIndex < endIndex) endIndex = joinIndex;
+
+            firstTableRef = afterFrom.substring(0, endIndex).trim();
+
+            // 移除可能的别名（AS 或空格后的别名）
+            if (firstTableRef.contains(" AS ")) {
+                firstTableRef = firstTableRef.substring(0, firstTableRef.indexOf(" AS ")).trim();
+            }
+
+            // 提取数据库名（支持带反引号和不带反引号）
+            String dbName = null;
+
+            // 匹配 `database`.`table` 或 database.table
+            if (firstTableRef.contains(".")) {
+                String[] parts = firstTableRef.split("\\.");
+                if (parts.length >= 2) {
+                    dbName = parts[0].replaceAll("`", "").trim();
+                }
+            }
+
+            log.debug("🔍 [SQL解析] 从 SQL 中提取数据库名: {} (来源: {})", dbName, firstTableRef);
+
+            return dbName;
+
+        } catch (Exception e) {
+            log.warn("⚠️ [SQL解析] 提取数据库名失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

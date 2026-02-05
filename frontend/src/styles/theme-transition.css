@@ -1,0 +1,271 @@
+/* ============================================
+   主题切换平滑过渡优化
+   ============================================ */
+
+/* === 1. 为所有元素添加颜色过渡动画 === */
+*,
+*::before,
+*::after {
+  transition-property:
+    background-color,
+    border-color,
+    color,
+    background,
+    box-shadow,
+    opacity;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 2. 例外：不需要过渡的元素 === */
+/* 表单元素在输入时不需要过渡 */
+input:focus,
+textarea:focus,
+select:focus {
+  transition: none !important;
+}
+
+/* 图片和视频不需要颜色过渡 */
+img,
+video,
+canvas {
+  transition: none !important;
+}
+
+/* 代码块保持原样 */
+code,
+pre,
+kbd {
+  transition: none !important;
+}
+
+/* === 3. 主题切换时的过渡类（由 JS 添加） === */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition-duration: 0.3s !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* === 4. 优化常用组件的过渡 === */
+
+/* 侧边栏 */
+.sidebar {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 导航项 */
+.nav-item {
+  transition:
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 卡片 */
+.el-card,
+.modern-card {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 按钮 */
+.el-button {
+  transition:
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 输入框 */
+.el-input__wrapper,
+.el-textarea__inner {
+  transition:
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 对话框 */
+.el-dialog,
+.el-dialog__wrapper {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 下拉菜单 */
+.el-dropdown-menu,
+.el-select-dropdown {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 消息提示 */
+.el-message,
+.el-notification {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 表格 */
+.el-table {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.el-table__row {
+  transition:
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 标签页 */
+.el-tabs__item {
+  transition:
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 5. 背景和文字的特殊过渡 === */
+body,
+.main-content,
+.page-content,
+.login-container {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 6. 滚动条过渡 === */
+::-webkit-scrollbar-track {
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::-webkit-scrollbar-thumb {
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 7. 主题切换按钮动画优化 === */
+.theme-toggle {
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+              height 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-toggle:active::before {
+  width: 200%;
+  height: 200%;
+}
+
+/* === 8. 防止某些元素的闪烁 === */
+/* 对于卡片等元素，添加轻微的淡入效果 */
+.el-card,
+.modern-card {
+  animation: none;
+}
+
+.theme-transitioning .el-card,
+.theme-transitioning .modern-card {
+  animation: themeFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes themeFade {
+  from {
+    opacity: 0.98;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* === 9. 图标颜色过渡 === */
+.el-icon,
+.theme-icon,
+.dropdown-icon {
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 10. 文字颜色过渡 === */
+h1, h2, h3, h4, h5, h6,
+p, span, div, a, button, input, label {
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 11. Element Plus 组件覆盖 === */
+/* 确保 Element Plus 组件也参与过渡 */
+.el-popper,
+.el-select-dropdown,
+.el-dropdown__popper,
+.el-tooltip__popper {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 12. 用户头像过渡 === */
+.user-avatar-circle,
+.dropdown-user-avatar,
+.user-avatar-top {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 13. 提示框过渡 === */
+.el-alert,
+.el-message-box {
+  transition:
+    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 14. 表单元素过渡优化 === */
+.el-form-item__label,
+.el-checkbox__label,
+.el-radio__label {
+  transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 15. 禁止过渡的元素（性能优化）=== */
+.no-transition,
+.skip-transition {
+  transition: none !important;
+}
+
+/* SVG 图标不需要颜色过渡（除非是单色图标） */
+svg {
+  transition: none;
+}
+
+svg path,
+svg circle,
+svg rect {
+  transition: fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

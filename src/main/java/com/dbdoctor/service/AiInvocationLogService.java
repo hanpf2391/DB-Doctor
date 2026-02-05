@@ -39,8 +39,8 @@ public class AiInvocationLogService {
     public void saveAsync(AiInvocationLog invocationLog) {
         try {
             repository.save(invocationLog);
-            log.debug("[AI监控] 日志已保存: id={}, agent={}, duration={}ms",
-                    invocationLog.getId(), invocationLog.getAgentName(), invocationLog.getDurationMs());
+            log.debug("[AI监控] 日志已保存: id={}, agent={}, traceId={}, duration={}ms",
+                    invocationLog.getId(), invocationLog.getAgentName(), invocationLog.getTraceId(), invocationLog.getDurationMs());
         } catch (Exception e) {
             log.error("[AI监控] 保存日志失败: agent={}, traceId={}",
                     invocationLog.getAgentName(), invocationLog.getTraceId(), e);
@@ -57,6 +57,28 @@ public class AiInvocationLogService {
     @Transactional
     public AiInvocationLog save(AiInvocationLog invocationLog) {
         return repository.save(invocationLog);
+    }
+
+    /**
+     * 清理指定 trace_id 的所有旧记录
+     *
+     * <p>在开始新的分析前调用，清理上次分析的调用链路数据</p>
+     *
+     * @param traceId SQL 指纹
+     * @return 删除的记录数
+     */
+    @Transactional
+    public int cleanByTraceId(String traceId) {
+        if ("UNKNOWN".equals(traceId)) {
+            return 0;
+        }
+
+        int deletedCount = repository.deleteByTraceId(traceId);
+        if (deletedCount > 0) {
+            log.info("[AI监控] 清理旧分析记录: traceId={}, 删除了 {} 条旧记录", traceId, deletedCount);
+        }
+
+        return deletedCount;
     }
 
     /**

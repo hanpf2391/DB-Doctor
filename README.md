@@ -1,15 +1,31 @@
-# 🏥 DB-Doctor
-
 <div align="center">
 
 <img src="frontend/public/logo.png" alt="DB-Doctor Logo" width="120" height="120" />
 
-**一款非侵入式的 MySQL 慢查询智能诊疗系统**
+# 🏥 DB-Doctor
+
+### **基于 DeepSeek/LLM 的 MySQL 数据库"自动驾驶"诊疗平台**
+
+**告别慢查询，DB-Doctor 让您的数据库拥有智能医生！**
+
+![][github-stars-shield]
+![][github-forks-shield]
+![][github-issues-shield]
+![][github-license-shield]
 
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green.svg)](https://spring.io/projects/spring-boot)
 [![LangChain4j](https://img.shields.io/badge/LangChain4j-0.36.1-blue.svg)](https://docs.langchain4j.dev)
+[![Vue 3](https://img.shields.io/badge/Vue-3.x-brightgreen.svg)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
+
+**[快速开始](#-快速开始)** •
+**[功能特性](#-核心特性)** •
+**[架构设计](#-系统架构)** •
+**[在线演示](#-在线演示)** •
+**[贡献指南](#-贡献指南)**
 
 </div>
 
@@ -17,72 +33,210 @@
 
 ## 📖 项目简介
 
-**DB-Doctor** 是一款基于 AI Agent 的 MySQL 慢查询智能分析系统，通过实时监听 MySQL 慢查询日志，利用大语言模型（LLM）分析根因并推送优化建议。
+**DB-Doctor** 是一款基于**多 AI Agent 协作**的非侵入式 MySQL 慢查询智能诊疗系统。通过实时监听 MySQL 慢查询日志，利用大语言模型（DeepSeek/Ollama/通义千问等）分析根因并推送优化建议。
 
-### 核心特性
-
-- 🚀 **非侵入式设计**：只读访问 MySQL，零业务侵入
-- 🤖 **AI 智能诊断**：基于 LangChain4j + LLM 的慢查询根因分析
-- 📊 **SQL 指纹去重**：自动识别重复 SQL，避免通知轰炸
-- 🔄 **动态环境感知**：自动检测 MySQL 配置，无需重启即可恢复监控
-- 📧 **多渠道通知**：支持邮件、钉钉、飞书、企业微信
-- 🛡️ **工业级可靠性**：优雅停机、任务重试、自动清理
+> **💡 AI 声明**：本项目在开发过程中得到了 Claude Code、Gemini、gml等 AI 工具的辅助。作者持续学习优化中，欢迎提 Issue 和 PR！
 
 ---
 
-## 🎯 适用场景
+## 💎 核心卖点
 
-- **DBA 效率提升**：自动分析慢查询，减少人工排查时间
-- **开发团队辅助**：实时收到 SQL 优化建议，提升代码质量
-- **数据库监控**：7x24 小时监控数据库性能，及时发现异常
-- **性能优化**：持续跟踪慢查询趋势，辅助性能调优
+### Why DB-Doctor?
+
+- 🔒 **数据不出域**：支持 Ollama + 本地 DeepSeek R1 模型，绝对安全，企业级应用首选
+- 🚀 **非侵入性**：无需改业务代码，无需引入 Jar 包，独立部署，对现有系统零影响
+- 🤖 **AI 加持**：DeepSeek R1 / 通义千问 / GPT-4 多模型支持，高精准诊断
+- 🧠 **多 Agent 协作**：主治医生 + 推理专家 + 编码专家，深度推理解决复杂问题
+- ⚡ **开箱即用**：Docker 一键部署，5分钟上手
+- 🎯 **解放 DBA**：从繁琐的慢查询诊断中解脱，提升 10 倍效率
+
+---
+
+### 🎯 为什么选择 DB-Doctor？
+
+| 特性 | DB-Doctor | 传统方案 |
+|------|-----------|---------|
+| **数据安全** | ✅ 支持 Ollama 本地化部署，数据不出域 | ❌ 需上传到云端 |
+| **业务侵入** | ✅ 只读访问，零业务侵入 | ⚠️ 需要修改业务代码或引入 SDK |
+| **诊断效率** | ✅ AI 自动分析，秒级响应 | ❌ 人工排查，耗时长 |
+| **精准度** | ✅ 多 Agent 协作，深度推理 | ⚠️ 经验规则，误报率高 |
+| **部署成本** | ✅ Docker 一键部署，5分钟上手 | ❌ 复杂配置，学习成本高 |
+
+---
+
+## ✨ 核心特性
+
+### 🤖 **多 AI Agent 协作机制**
+- **主治医生 Agent**：初步诊断，收集证据（表结构、执行计划、索引信息）
+- **推理专家 Agent**：深度推理，找到根因（复杂问题升级分析）
+- **编码专家 Agent**：生成优化代码（索引创建、SQL 重写）
+
+### 🔒 **数据不出域**
+- ✅ 支持 **Ollama + DeepSeek R1** 本地化部署
+- ✅ 支持通义千问、OpenAI 等云端模型
+- ✅ 敏感数据自动脱敏（SQL 参数、密码等）
+
+### 🚀 **非侵入式设计**
+- ✅ 只读访问 MySQL，零业务侵入
+- ✅ 无需修改业务代码，无需引入 Jar 包
+- ✅ 独立部署，对现有系统零影响
+
+### 🧠 **智能去重与聚合**
+- ✅ 使用 Druid SQL 指纹计算，自动识别重复 SQL
+- ✅ Template + Sample 双表架构，避免通知轰炸
+- ✅ 增量统计，追踪性能趋势
+
+### 📊 **AI 监控与成本分析**
+- ✅ 完整的 Token 统计（输入/输出/总成本）
+- ✅ 多模型成本分析（DeepSeek、GPT-4、通义千问等）
+- ✅ 单次分析追踪（traceId 关联完整分析链路）
+- ✅ 错误分类与熔断保护
+
+### 📢 **多渠道通知**
+- ✅ 邮件通知（SMTP）
+- ✅ 钉钉机器人（Webhook + 签名验证）
+- ✅ 飞书机器人（Webhook）
+- ✅ 企业微信（Webhook）
+
+---
+
+## 📌 项目状态
+
+**当前版本**：**v3.1.0**（2025年2月更新）
+
+**最新动态**：
+
+- [x] **v3.1.0** - 通知功能完善（邮件、钉钉、飞书、企业微信）
+- [x] **v3.0.0** - 动态数据源 + 配置热加载功能
+- [x] **v2.0.0** - SQL 指纹去重 + Template/Sample 双表架构
+- [x] **v1.0.0** - 基础慢查询监控 + AI 分析功能
+
+**即将发布**：
+
+- [ ] **v3.2.0** - 报告导出（PDF/Word）- 开发中
+- [ ] **v3.3.0** - 自定义通知规则 - 计划中
+- [ ] **v4.0.0** - 多租户支持（监控多个 MySQL 实例）- 规划中
+
+项目处于**活跃开发**阶段，代码持续更新中。更多迭代进度请阅读 [CHANGELOG.md](frontend/CHANGELOG.md)
+
+---
+
+## 🎬 演示视频
+
+<!-- GIF 演示占位符 -->
+<!--
+<p align="center">
+  <img src="docs/demo.gif" width="800" alt="DB-Doctor 演示" />
+</p>
+
+**演示说明**：
+1. 发现慢查询（或模拟一个）
+2. DB-Doctor AI Agent 思考分析过程
+3. 给出索引建议/优化方案
+4. （可选）效果对比
+-->
+
+<!-- B站视频占位符 -->
+### 📺 完整演示视频
+[![B站视频封面](docs/video-cover.png)](https://www.bilibili.com/video/XXXXX)
+
+**点击观看**：[DB-Doctor 完整演示](https://www.bilibili.com/video/XXXXX)（录制中...）
 
 ---
 
 ## 🏗️ 系统架构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        DB-Doctor                              │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐    │
-│  │ 环境检查器   │   │ 监控调度器   │   │ 分析服务     │    │
-│  │ EnvChecker   │──▶│ Monitor      │──▶│ Analysis     │    │
-│  └──────────────┘   └──────────────┘   └──────────────┘    │
-│                            │                   │            │
-│                            ▼                   ▼            │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐    │
-│  │ MySQL 慢查询 │   │  H2 内部库   │   │ AI Agent     │    │
-│  │ 日志表       │   │  (分析历史)  │   │ (LLM 分析)   │    │
-│  └──────────────┘   └──────────────┘   └──────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-                   ┌──────────────┐
-                   │  通知服务    │
-                   │  (邮件/IM)   │
-                   └──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         DB-Doctor 系统架构                            │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐   │
+│  │   Vue 3 前端    │    │  Spring Boot   │    │   AI Agents    │   │
+│  │                │◄──►│     后端        │◄──►│  (LangChain4j) │   │
+│  │  - Dashboard   │    │                │    │                │   │
+│  │  - 报告列表     │    │  - REST API    │    │  - 主治医生     │   │
+│  │  - AI 监控     │    │  - 定时任务     │    │  - 推理专家     │   │
+│  │  - 配置中心     │    │  - 异步处理     │    │  - 编码专家     │   │
+│  └────────────────┘    └────────────────┘    └────────────────┘   │
+│                                │                                   │
+└────────────────────────────────┼───────────────────────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+            ┌───────▼────────┐       ┌────────▼────────┐
+            │  H2 数据库      │       │  MySQL 目标库   │
+            │  (内部数据)     │       │  (只读访问)     │
+            │                │       │                │
+            │  - Template 表 │       │  - slow_log    │
+            │  - Sample 表    │       │  - information │
+            │  - AI 调用日志  │       │    _schema     │
+            │  - 系统配置     │       │                │
+            └────────────────┘       └────────────────┘
+```
+
+### 核心业务流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        慢查询处理完整流程                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. 数据采集 → 2. 数据处理 → 3. AI 分析 → 4. 通知判断 → 5. 批量通知    │
+│                                                                         │
+│  轮询 mysql.slow_log  →  SQL 指纹去重  →  多 Agent 协作  →  智能策略  │
+│  (每 5 秒检查)       →  Template+Sample →  主治/推理/编码  →  定时发送  │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 🚀 快速开始
 
-### 环境要求
+### 🐳 方式 1：Docker 部署（推荐）⚡️
+
+**开箱即用，5 分钟上手！**
+
+<!-- Docker 镜像占位符 -->
+```bash
+# 1. 拉取镜像（镜像构建中...）
+docker pull ghcr.io/hanpf2391/db-doctor:latest
+
+# 2. 运行容器
+docker run -d \
+  --name db-doctor \
+  -p 8080:8080 \
+  -e LANGCHAIN4J_OPEN_AI_API_KEY=your-api-key \
+  -e SPRING_DATASOURCE_PASSWORD=your-mysql-password \
+  ghcr.io/hanpf2391/db-doctor:latest
+
+# 3. 访问 Web 界面
+open http://localhost:8080
+```
+
+**优势**：
+- ✅ 无需安装 Java、Maven 等环境
+- ✅ 一键启动，自动配置
+- ✅ 隔离运行，不影响现有系统
+
+### 方式 2：本地开发运行
+
+#### 环境要求
 
 - **JDK 17+**
 - **Maven 3.6+**
 - **MySQL 5.7+ / 8.0+**
-- **LLM API Key**（阿里云通义千问 / OpenAI / 其他兼容模型）
+- **Node.js 16+** (前端开发)
+- **LLM API Key**（DeepSeek/Ollama/通义千问/OpenAI）
 
-### 1. 克隆项目
+#### 1. 克隆项目
 
 ```bash
-git clone https://github.com/your-username/db-doctor.git
-cd db-doctor
+git clone https://github.com/hanpf2391/DB-Doctor.git
+cd DB-Doctor
 ```
 
-### 2. 配置数据库
+#### 2. 配置数据库
 
 编辑 `src/main/resources/application-local.yml`：
 
@@ -102,83 +256,70 @@ db-doctor:
     password: your_password
 ```
 
-#### 🗄️ MySQL 数据库访问说明
+#### 3. 配置 AI 模型
 
-**1. 确保 MySQL 服务运行**
+**选项 A：使用 DeepSeek（推荐，性价比高）**
+
+```yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: sk-your-deepseek-api-key
+      base-url: https://api.deepseek.com/v1
+      model-name: deepseek-chat
+      temperature: 0.0
+```
+
+**选项 B：使用 Ollama 本地模型（数据不出域）**
+
+```yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: http://localhost:11434/v1
+      model-name: deepseek-r1:7b
+      temperature: 0.0
+```
+
+先安装 Ollama 并下载 DeepSeek R1 模型：
 
 ```bash
-# Windows
-# 检查 MySQL 服务是否启动
-sc query MySQL80
+# 安装 Ollama（Mac/Linux）
+curl -fsSL https://ollama.com/install.sh | sh
 
-# 启动 MySQL 服务
-net start MySQL80
+# Windows 下载安装包
+# https://ollama.com/download
 
-# Linux/Mac
-sudo systemctl start mysql
-sudo systemctl status mysql
+# 下载 DeepSeek R1 模型（7B 版本约 4GB）
+ollama pull deepseek-r1:7b
+
+# 验证安装
+ollama run deepseek-r1:7b
 ```
 
-**2. 连接 MySQL 数据库**
+**选项 C：使用阿里云通义千问**
 
-**命令行方式**：
-```bash
-# 连接 MySQL
-mysql -u root -p
-
-# 进入后显示所有数据库
-SHOW DATABASES;
-
-# 切换到 information_schema
-USE information_schema;
-
-# 查看表
-SHOW TABLES;
+```yaml
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: sk-your-qwen-api-key
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      model-name: qwen-plus
 ```
 
-**图形化工具（推荐）**：
+#### 4. 配置慢查询日志
 
-| 工具 | 下载地址 | 特点 |
-|------|---------|------|
-| **MySQL Workbench** | https://dev.mysql.com/downloads/workbench/ | 官方工具，功能全面 |
-| **Navicat** | https://www.navicat.com/ | 界面友好，商业软件 |
-| **DBeaver** | https://dbeaver.io/ | 免费开源，轻量级 |
-| **phpMyAdmin** | https://www.phpmyadmin.net/ | Web 界面，适合 LAMP |
+**方式 1：自动检查（推荐）**
 
-**使用 MySQL Workbench 连接**：
-```
-1. 打开 MySQL Workbench
-2. 点击 "+" 创建新连接
-3. 填写连接信息：
-   - Hostname: 127.0.0.1 或 localhost
-   - Port: 3306
-   - Username: root
-   - Password: 你的 MySQL 密码
-4. 点击 "Test Connection" 测试连接
-5. 点击 "OK" 保存连接
-```
+DB-Doctor 启动时会自动检查 MySQL 配置，并给出修复建议。
 
-**3. 查看慢查询日志**
-
-```sql
--- 切换到 information_schema 数据库
-USE information_schema;
-
--- 查看 PROCESSLIST 表（存储慢查询日志）
--- 注意：MySQL 8.0+ 默认使用系统表，慢查询日志记录在 mysql.slow_log 表
-SELECT * FROM mysql.slow_log LIMIT 10;
-```
-
-**4. 配置慢查询日志（如未配置）**
+**方式 2：手动配置**
 
 ```sql
 -- 开启慢查询日志
 SET GLOBAL slow_query_log = 'ON';
-
--- 设置日志输出方式（TABLE = 表, FILE = 文件）
 SET GLOBAL log_output = 'TABLE';
-
--- 设置慢查询阈值（单位：秒）
 SET GLOBAL long_query_time = 2.0;
 
 -- 验证配置
@@ -186,374 +327,113 @@ SHOW VARIABLES LIKE 'slow_query%';
 SHOW VARIABLES LIKE 'long_query_time';
 ```
 
-**5. 常用数据库操作**
+#### 5. 启动后端
 
 ```bash
-# 创建数据库
-mysql -u root -p -e "CREATE DATABASE test_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# 导入数据
-mysql -u root -p test_db < test_db.sql
-
-# 导出数据库
-mysqldump -u root -p test_db > test_db_backup.sql
-
-# 查看数据库大小
-mysql -u root -p -e "SELECT table_schema AS 'Database',
-  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)'
-  FROM information_schema.tables
-  GROUP BY table_schema;"
-```
-
-**6. 测试数据库连接**
-
-在 `application-local.yml` 配置完成后，可以通过以下方式测试连接：
-
-```bash
-# 使用 telnet 测试端口
-telnet localhost 3306
-
-# 或使用 nc 命令（Linux/Mac）
-nc -zv localhost 3306
-```
-
-如果连接成功，会显示 `Escape character is ^]` 或 `Connected to localhost`。
-
----
-
-### 2.5 H2 数据库访问说明（开发/测试）
-
-DB-Doctor 使用 **H2 内存数据库**存储慢查询分析历史，可通过以下方式访问：
-
-#### 🌐 H2 Web Console（推荐）
-
-**启动后访问 H2 Console**：
-```
-URL: http://localhost:8080/h2-console
-JDBC URL: jdbc:h2:mem:dbdoctor
-用户名: sa
-密码: (留空)
-```
-
-**连接步骤**：
-1. 启动 DB-Doctor 后端服务
-2. 浏览器访问：`http://localhost:8080/h2-console`
-3. 填写连接信息：
-   - **Saved Settings**: `Generic H2 (Embedded)`
-   - **Driver Class**: `org.h2.Driver`
-   - **JDBC URL**: `jdbc:h2:mem:dbdoctor`
-   - **User Name**: `sa`
-   - **Password**: (留空)
-4. 点击 "Connect" 连接
-
-#### 📊 H2 数据库表结构
-
-连接成功后，可以查看以下表：
-
-```sql
--- 查看所有表
-SHOW TABLES;
-
--- 慢查询模板表（核心表）
-SELECT * FROM slow_query_template;
-
--- 查看最近的慢查询分析记录
-SELECT
-  id,
-  sql_fingerprint,
-  db_name,
-  table_name,
-  avg_query_time,
-  max_query_time,
-  occurrence_count,
-  severity_level,
-  status,
-  first_seen_time,
-  last_seen_time
-FROM slow_query_template
-ORDER BY last_seen_time DESC
-LIMIT 10;
-
--- 查看统计信息
-SELECT
-  COUNT(*) as total_templates,
-  COUNT(CASE WHEN status = 'SUCCESS' THEN 1 END) as success_count,
-  COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_count,
-  COUNT(CASE WHEN severity_level = '🔴 严重' THEN 1 END) as critical_count
-FROM slow_query_template;
-```
-
-#### 🔧 JDBC 连接方式（使用工具）
-
-**DBeaver 连接 H2**：
-```
-1. 下载 DBeaver: https://dbeaver.io/
-2. 创建新连接 → 选择 "H2 Embedded"
-3. Database path: `mem:dbdoctor`
-4. User name: `sa`
-5. Password: (留空)
-```
-
-**IntelliJ IDEA Database 工具**：
-```
-1. 右侧 Database 面板 → "+" → Data Source → H2
-2. File: `mem:dbdoctor`
-3. User: `sa`
-4. 点击 "Test Connection"
-```
-
-#### 💾 H2 数据持久化（可选）
-
-**当前配置**：H2 数据存储在内存中，重启后数据丢失。
-
-**持久化到文件**：修改 `application-local.yml`：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:h2:file:./data/dbdoctor  # 改为文件模式
-    # url: jdbc:h2:mem:dbdoctor     # 内存模式（默认）
-```
-
-重启后，数据将保存在项目根目录的 `./data/dbdoctor.mv.db` 文件中。
-
-#### 🛠️ 常用 H2 操作
-
-```sql
--- 查看所有表
-SHOW TABLES;
-
--- 查看表结构
-DESCRIBE slow_query_template;
-
--- 查看索引
-SHOW INDEX FROM slow_query_template;
-
--- 清空测试数据（开发调试用）
-DELETE FROM slow_query_template;
-
--- 查看数据库版本
-SELECT H2_VERSION();
-```
-
-#### ⚠️ H2 数据库特点
-
-| 特性 | 说明 |
-|------|------|
-| **内存模式** | 数据保存在内存中，重启丢失（默认） |
-| **文件模式** | 数据持久化到文件，重启保留 |
-| **轻量级** | 无需独立安装数据库服务 |
-| **开发友好** | 启动快，适合测试环境 |
-| **Web Console** | 自带 Web 管理界面 |
-
-**注意**：生产环境建议使用 MySQL 或 PostgreSQL，H2 仅用于开发/测试。
-
-### 3. 配置 AI
-
-```yaml
-langchain4j:
-  open-ai:
-    chat-model:
-      api-key: your-api-key-here
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      model-name: qwen-plus
-```
-
-### 4. 配置慢查询
-
-**方式 1：自动检查（推荐）**
-
-```yaml
-db-doctor:
-  env-check:
-    enabled: true  # 启动时自动检查环境
-```
-
-**方式 2：手动配置**
-
-在 MySQL 中执行：
-
-```sql
-SET GLOBAL slow_query_log = 'ON';
-SET GLOBAL log_output = 'TABLE';
-SET GLOBAL long_query_time = 2.0;
-```
-
-### 5. 启动项目
-
-```bash
+# 方式 1：Maven 运行
 mvn spring-boot:run
+
+# 方式 2：打包后运行
+mvn clean package -DskipTests
+java -jar target/db-doctor-3.0.0.jar
 ```
 
-访问：http://localhost:8080
+#### 6. 启动前端（开发模式）
+
+```bash
+cd frontend
+
+# 安装依赖
+npm install
+# 或使用 pnpm
+pnpm install
+
+# 启动开发服务器
+npm run dev
+```
+
+访问：http://localhost:5173
+
+#### 7. 访问 Web 界面
+
+启动成功后，访问：http://localhost:8080
+
+<!-- 截图展示占位符 -->
+<!--
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="800" alt="仪表盘" />
+  <img src="docs/screenshots/report-list.png" width="800" alt="报告列表" />
+  <img src="docs/screenshots/ai-monitor.png" width="800" alt="AI 监控" />
+</p>
+-->
 
 ---
 
-## 📝 配置说明
+## 📚 功能详解
 
-### 环境检查配置
+### 1. 多 AI Agent 协作机制
 
-```yaml
-db-doctor:
-  env-check:
-    enabled: true            # 是否启用环境检查
-    fail-on-error: false     # 检查失败是否阻止启动
-    auto-fix: false          # 是否尝试自动修复（需要 SUPER 权限）
-```
+DB-Doctor 采用 **ReAct (Reasoning + Acting)** 模式，多个 Agent 协同工作：
 
-### 慢查询监控配置
+| Agent | 角色 | 职责 | 触发条件 |
+|-------|------|------|---------|
+| **主治医生** | 初级诊断 | 收集证据（表结构、执行计划、索引信息） | 所有慢查询 |
+| **推理专家** | 高级诊断 | 深度推理，找到根因 | 复杂问题（高频/严重/锁等待/全表扫描） |
+| **编码专家** | 优化实施 | 生成优化代码（索引创建、SQL 重写） | 需要升级的问题 |
 
-```yaml
-db-doctor:
-  slow-log-monitor:
-    poll-interval-ms: 60000          # 轮询间隔（毫秒）
-    max-records-per-poll: 100        # 每次最多读取记录数
-    auto-cleanup:
-      enabled: true                  # 是否启用自动清理
-      cron-expression: "0 0 3 * * ?" # 清理任务 cron 表达式
-```
-
-### 通知配置
-
-```yaml
-db-doctor:
-  notify:
-    enabled-notifiers: email,webhook
-    notify-interval: 3600            # 通知间隔（秒）
-    severity-threshold: 3.0          # 严重程度阈值
-
-    email:
-      enabled: true
-      from: DB-Doctor <noreply@example.com>
-      to:
-        - dba@example.com
-```
-
----
-
-## 🎨 功能特性详解
-
-### 1. 动态环境感知
-
-- ✅ 启动时全面检查 MySQL 配置
-- ✅ 运行时每分钟快速检查（轻量级）
-- ✅ 环境不达标时进入"休眠"状态
-- ✅ 用户修复配置后自动恢复监控（无需重启）
+**升级触发条件**：
+- 高频 SQL：24 小时内出现 > 100 次
+- 严重慢查询：平均耗时 > 3 秒
+- 锁等待问题：平均锁等待 > 0.1 秒
+- 疑似全表扫描：扫描/返回 > 1000
 
 ### 2. SQL 指纹去重
 
-- ✅ 自动计算 SQL 指纹（MD5）
-- ✅ 识别相同类型的慢查询
-- ✅ 首次发现立即通知
-- ✅ 重复查询聚合统计，避免通知轰炸
+使用 **Druid SQL 解析器**计算 SQL 指纹（MD5），自动识别参数化 SQL 模板：
 
-### 3. AI 智能分析
+```java
+// 示例：以下 SQL 会被识别为同一个指纹
+SELECT * FROM users WHERE id = 1;
+SELECT * FROM users WHERE id = 2;
+SELECT * FROM users WHERE id = 100;
 
-- ✅ 深度分析慢查询根因
-- ✅ 提供索引优化建议
-- ✅ SQL 重写建议
-- ✅ 执行计划分析（EXPLAIN）
-
-### 4. AI 监控与 Token 统计 🆕
-
-- ✅ **AI 调用监控**：实时监控所有 AI 调用（Diagnosis/Reasoning/Coding）
-- ✅ **Token 消耗统计**：追踪输入/输出 Token 数量
-- ✅ **性能分析**：记录每次 AI 调用的耗时
-- ✅ **单次分析详情**：按 SQL 指纹（traceId）聚合查看完整的分析链路
-- ✅ **成本分析** 🆕：统计各模型和各 Agent 的成本消耗（v2.3.2）
-
-#### ✨ Token 统计实现说明（v2.3.2 升级）
-
-**当前实现方式**：**官方 API + 估算兜底** 的双重策略
-
-**v2.3.2 升级内容**：
-- ✅ **LangChain4j 升级到 0.36.1**：支持完整的 TokenUsage API
-- ✅ **官方 Token 统计**：OpenAI、DeepSeek 等模型使用真实 Token 数（准确度 95%+）
-- ✅ **估算算法兜底**：Ollama 等本地模型继续使用估算（准确度 70-80%）
-- ✅ **成本分析功能**：基于真实 Token 计算实际成本（支持多模型定价）
-
-**Token 统计策略**：
-
-1. **优先使用官方 API**（v2.3.2 启用）
-   - OpenAI/DeepSeek 等支持 TokenUsage 的模型使用官方统计数据
-   - 准确度：**95%+** ✅
-
-2. **估算算法兜底**（保留）
-   - Ollama 等不返回 TokenUsage 的模型使用估算算法
-   - 中文：约 **1.5 字符 / Token**
-   - 英文：约 **4 字符 / Token**
-   - SQL 代码：约 **3 字符 / Token**
-   - 准确度：**70-80%**
-
-#### 💰 成本分析功能（v2.3.2 新增）
-
-**功能特性**：
-- 📊 **总成本统计**：统计时间范围内的总成本（美元）
-- 📈 **各模型成本分布**：饼图展示不同模型的成本占比
-- 🔍 **各 Agent 成本分布**：主治医生、推理专家、编码专家的成本分析
-- 📉 **Token 组成分析**：输入 Token vs 输出 Token 的条形图对比
-
-**模型定价配置**（`application.yml`）：
-```yaml
-db-doctor:
-  ai:
-    cost:
-      model-pricing:
-        gpt-4o:
-          input-price: 5.0      # $5 / 百万输入 Token
-          output-price: 15.0    # $15 / 百万输出 Token
-          provider: openai
-        deepseek-chat:
-          input-price: 0.14
-          output-price: 0.28
-          provider: deepseek
-        qwen:  # Ollama 本地模型
-          input-price: 0.0      # 免费
-          output-price: 0.0
-          provider: ollama
+// SQL 指纹：md5("SELECT * FROM users WHERE id = ?")
+// SQL 模板：SELECT * FROM users WHERE id = ?
 ```
 
-**相关文档**：
-- 📄 `docs/AI监控功能增强设计文档.md` - 功能设计文档
-- 📄 `docs/LangChain4j升级影响分析报告.md` - 升级技术分析
+### 3. Template + Sample 双表架构
 
-### 5. 多渠道通知
+- **Template 表**：存储 SQL 模板和聚合统计（平均耗时、最大耗时、出现次数等）
+- **Sample 表**：存储每次捕获的具体 SQL（保留完整历史）
 
-- ✅ **邮件通知**：支持 SMTP 协议
-- ✅ **钉钉机器人**：支持 Webhook + 签名验证
-- ✅ **飞书机器人**：支持 Webhook
-- ✅ **企业微信**：支持 Webhook
+**优势**：
+- ✅ 避免重复分析
+- ✅ 减少存储空间
+- ✅ 追踪性能趋势
 
-### 5. 工业级可靠性
+### 4. 动态数据源热加载
 
-- ✅ **优雅停机**：等待任务完成后关闭
-- ✅ **任务重试**：PENDING 任务自动补扫
-- ✅ **自动清理**：定期清理历史分析数据
-- ✅ **线程池隔离**：AI 分析与业务逻辑隔离
+修改数据库配置后，无需重启应用，点击"重载配置"即可生效：
+
+```java
+// 配置热加载流程
+1. 用户在 Web 界面修改配置
+2. 保存到 H2 数据库 system_config 表
+3. DynamicDataSourceManager 检测到配置变更
+4. 关闭旧数据源，初始化新数据源
+5. 原子引用更新（线程安全）
+```
+
+### 5. AI 监控与成本分析
+
+- **Token 统计**：输入/输出/总 Token 数量
+- **成本分析**：按模型和 Agent 分类统计成本
+- **错误分类**：BLOCKING（阻塞）、TRANSIENT（瞬态）、PERMANENT（永久）
+- **熔断保护**：连续失败 N 次后自动熔断，避免浪费 Token
 
 ---
 
 ## 📊 使用示例
-
-### 启动日志
-
-```
-========================================
-🚀 开始 MySQL 环境准入检测...
-========================================
-
-📋 环境检查报告
-========================================
-✅ PASS | slow_query_log | ON
-✅ PASS | log_output | TABLE
-⚠️  WARN | long_query_time | 10.000000 秒
-✅ PASS | mysql.slow_log 访问权限 | 有权限
-========================================
-检查结果：通过 3，警告 1，失败 0，错误 0
-========================================
-
-✅ 环境检查通过，DB-Doctor 可以正常工作！
-```
 
 ### 慢查询通知示例
 
@@ -584,6 +464,62 @@ SELECT * FROM users WHERE username LIKE '%1234%'
 
 ---
 
+## 🛠️ 技术栈
+
+| 组件 | 技术选型 | 版本 |
+|------|---------|------|
+| **后端框架** | Spring Boot | 3.2.2 |
+| **Java 版本** | OpenJDK | 17 |
+| **AI 框架** | LangChain4j | 0.36.1 |
+| **数据库** | H2（内部） + MySQL（目标） | - |
+| **前端框架** | Vue 3 + Element Plus | 3.x |
+| **SQL 解析** | Druid | 1.2.20 |
+| **工具库** | Hutool, FastJSON2 | 5.8.27, 2.0.47 |
+
+---
+
+## 📄 配置说明
+
+### 环境检查配置
+
+```yaml
+db-doctor:
+  env-check:
+    enabled: true            # 是否启用环境检查
+    fail-on-error: false     # 检查失败是否阻止启动
+    auto-fix: false          # 是否尝试自动修复（需要 SUPER 权限）
+```
+
+### 慢查询监控配置
+
+```yaml
+db-doctor:
+  slow-log-monitor:
+    poll-interval-ms: 5000           # 轮询间隔（毫秒）
+    max-records-per-poll: 100        # 每次最多读取记录数
+    auto-cleanup:
+      enabled: true                  # 是否启用自动清理
+      cron-expression: "0 0 3 * * ?" # 清理任务 cron 表达式
+```
+
+### 通知配置
+
+```yaml
+db-doctor:
+  notify:
+    enabled-notifiers: email,webhook
+    notify-interval: 3600            # 通知间隔（秒）
+    severity-threshold: 3.0          # 严重程度阈值
+
+    email:
+      enabled: true
+      from: DB-Doctor <noreply@example.com>
+      to:
+        - dba@example.com
+```
+
+---
+
 ## 🧪 测试数据库
 
 项目提供了完整的性能测试数据库脚本：
@@ -597,7 +533,7 @@ mysql -u root -p < src/main/resources/test-db-setup.sql
 **包含内容**：
 - ✅ 7 张表（users、products、orders、order_items、categories、user_behavior_logs、payments）
 - ✅ 37万+ 条测试数据
-- ✅ 覆盖各种字段类型（BIGINT、INT、DECIMAL、VARCHAR、TEXT、ENUM、BOOLEAN、JSON、DATE、DATETIME、TIMESTAMP）
+- ✅ 覆盖各种字段类型
 - ✅ 自动配置慢查询阈值（0.5 秒）
 
 ### 2. 执行慢查询测试
@@ -619,28 +555,50 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 
 ---
 
-## 🛠️ 开发指南
+## 📈 发展路线
 
-### 项目结构
+### 已完成 ✅
 
-```
-db-doctor/
-├── src/main/java/com/dbdoctor/
-│   ├── agent/          # AI Agent 实现
-│   ├── check/          # 环境检查器
-│   ├── config/         # 配置类
-│   ├── lifecycle/      # 生命周期管理
-│   ├── model/          # 数据模型
-│   ├── repository/     # JPA Repository
-│   ├── service/        # 业务服务
-│   └── util/           # 工具类
-├── src/main/resources/
-│   ├── application.yml           # 主配置文件
-│   ├── application-local.yml     # 本地配置（不提交）
-│   ├── test-db-setup.sql         # 测试数据库初始化脚本
-│   └── 靶数据库.sql     # 慢查询测试语句
-└── scripts/            # 启动脚本
-```
+- **v1.0.0** - 基础慢查询监控 + AI 分析功能
+- **v2.0.0** - 动态环境感知 + SQL 指纹去重
+- **v3.0.0** - 动态数据源 + 配置热加载
+- **v3.1.0** - 通知功能完善（邮件、钉钉、飞书、企业微信）
+
+### 开发中 🚧
+
+- **v3.2.0** - 报告导出（PDF/Word）
+  - [ ] 生成 PDF 格式诊断报告
+  - [ ] 生成 Word 格式优化方案
+  - [ ] 支持批量导出
+
+### 计划中 📋
+
+- **v3.3.0** - 自定义通知规则
+  - [ ] 基于严重程度的智能通知
+  - [ ] 基于时间段的通知策略
+  - [ ] 多渠道通知编排
+
+- **v4.0.0** - 多租户支持
+  - [ ] 监控多个 MySQL 实例
+  - [ ] 租户隔离与权限管理
+  - [ ] 跨实例性能分析
+
+- **v4.1.0** - PostgreSQL 支持
+- **v4.2.0** - 分布式部署（消息队列解耦）
+
+---
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+### 贡献流程
+
+1. Fork 本项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'feat: 添加某功能'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
 
 ### 代码规范
 
@@ -650,60 +608,36 @@ db-doctor/
 - ✅ 异常必须记录日志并重新抛出
 - ✅ 所有 public 类和方法必须添加 JavaDoc
 
-### 编译构建
+---
 
-```bash
-# 编译
-mvn clean compile
+## 🙏 鸣谢
 
-# 测试
-mvn test
+感谢以下开源项目和技术社区：
 
-# 打包
-mvn clean package
-
-# 跳过测试打包
-mvn clean package -DskipTests
-```
+- [DeepSeek](https://www.deepseek.com/) - 开源大语言模型
+- [Ollama](https://ollama.com/) - 本地模型运行工具
+- [LangChain4j](https://docs.langchain4j.dev/) - Java AI 框架
+- [Spring Boot](https://spring.io/projects/spring-boot) - Java 开发框架
+- [Vue 3](https://vuejs.org/) - 渐进式前端框架
+- [Element Plus](https://element-plus.org/) - Vue 3 组件库
+- [Druid](https://github.com/alibaba/druid) - SQL 解析器
 
 ---
 
-## 📈 版本历史
+## 📮 联系方式
 
-### v2.1.0 (2024-01-28)
+<!-- 微信群二维码占位符 -->
+<!--
+<div align="center">
+  <img src="docs/wechat-qr-code.png" width="200" alt="微信交流群" />
+  <p>扫码加入 DB-Doctor 技术交流群</p>
+</div>
+-->
 
-- 🐛 修复配置文件中 notify 和 mail 配置重复的问题
-- 🎨 优化数据库设计，移除 SlowQueryTemplate.severityLevel 字段
-- 📝 完善项目文档，更新作者信息
-- ✅ 代码规范优化，确保所有参数可配置化
-
-### v2.0.0 (2024-01-26)
-
-- ✨ 新增动态环境感知功能
-- ✨ 新增 SQL 指纹去重机制
-- ✨ 新增 PENDING 任务重试
-- ✨ 新增自动清理功能
-- 🐛 修复优雅停机问题
-- 📝 完善测试数据库和文档
-
-### v1.0.0 (2024-01-22)
-
-- 🎉 首次发布
-- ✨ 实现慢查询监控功能
-- ✨ 实现 AI 智能分析
-- ✨ 实现多渠道通知
-
----
-
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'feat: 添加某功能'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 提交 Pull Request
+- **作者**：hanpf
+- **邮箱**：2391303768@qq.com
+- **GitHub**：https://github.com/hanpf2391/DB-Doctor
+- **Gitee**：https://gitee.com/hanpf2391/DB-Doctor
 
 ---
 
@@ -713,17 +647,18 @@ mvn clean package -DskipTests
 
 ---
 
-## 📮 联系方式
+## ⭐ Star History
 
-- **作者**：hanpf
-- **邮箱**：2391303768@qq.com
-- **项目地址**：https://github.com/your-username/db-doctor
+[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
+
+如果这个项目对你有帮助，请给我们一个 Star ⭐
 
 ---
 
-## ⭐ Star History
+## 🌍 国际化
 
-如果这个项目对你有帮助，请给我们一个 Star ⭐
+- 🇨🇳 [中文文档](README.md)
+- 🇺🇸 [English Documentation](README_EN.md) （翻译中...）
 
 ---
 
@@ -731,4 +666,13 @@ mvn clean package -DskipTests
 
 **Made with ❤️ by hanpf**
 
+**让每一个数据库都拥有智能医生**
+
 </div>
+
+<!-- LINK GROUP -->
+
+[github-stars-shield]: https://img.shields.io/github/stars/hanpf2391/DB-Doctor?color=ffcb47&labelColor=black&style=flat-square
+[github-forks-shield]: https://img.shields.io/github/forks/hanpf2391/DB-Doctor?color=8ae8ff&labelColor=black&style=flat-square
+[github-issues-shield]: https://img.shields.io/github/issues/hanpf2391/DB-Doctor?color=ff80eb&labelColor=black&style=flat-square
+[github-license-shield]: https://img.shields.io/github/license/hanpf2391/DB-Doctor?color=c4f042&labelColor=black&style=flat-square

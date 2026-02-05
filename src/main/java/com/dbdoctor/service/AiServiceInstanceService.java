@@ -31,6 +31,16 @@ public class AiServiceInstanceService {
     private final EncryptionService encryptionService;
 
     /**
+     * 获取所有AI服务实例（包括禁用的）
+     *
+     * @return 实例列表（默认实例优先，按创建时间倒序）
+     */
+    public List<AiServiceInstance> findAll() {
+        log.debug("查询所有AI服务实例");
+        return repository.findAllByOrderByIsDefaultDescCreatedAtDesc();
+    }
+
+    /**
      * 获取所有启用的AI服务实例
      *
      * @return 实例列表（默认实例优先）
