@@ -29,8 +29,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "slow_query_template",
        indexes = {
-           @Index(name = "idx_fingerprint", columnList = "sqlFingerprint", unique = true),
-           @Index(name = "idx_status_time", columnList = "status, lastSeenTime")
+           @Index(name = "idx_slowq_fingerprint", columnList = "sqlFingerprint", unique = true),
+           @Index(name = "idx_slowq_status_time", columnList = "status, lastSeenTime")
        })
 public class SlowQueryTemplate {
 

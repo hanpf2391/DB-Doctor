@@ -71,6 +71,35 @@ const router = createRouter({
       meta: { title: '实例管理', icon: 'Connection', requiresAuth: true }
     },
 
+    // 监控与通知
+    {
+      path: '/monitoring',
+      name: 'Monitoring',
+      redirect: '/monitoring/system-health',
+      component: () => import('@/views/Monitoring/SystemHealth.vue'),
+      meta: { title: '监控中心', icon: 'TrendCharts', requiresAuth: false },
+      children: [
+        {
+          path: 'system-health',
+          name: 'SystemHealth',
+          component: () => import('@/views/Monitoring/SystemHealth.vue'),
+          meta: { title: '系统健康' }
+        },
+        {
+          path: 'alert-management',
+          name: 'AlertManagement',
+          component: () => import('@/views/Monitoring/AlertManagement.vue'),
+          meta: { title: '告警管理' }
+        },
+        {
+          path: 'notification-config',
+          name: 'NotificationConfig',
+          component: () => import('@/views/Monitoring/NotificationConfig.vue'),
+          meta: { title: '通知配置' }
+        }
+      ]
+    },
+
     // 设置中心
     {
       path: '/settings',

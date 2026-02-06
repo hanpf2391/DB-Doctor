@@ -168,3 +168,10 @@ credentials.json
 *.pem
 *.key
 *.crt
+
+# 临时文件
+nul
+compile_output.txt
+compile.bat
+*.html
+!src/main/resources/static/**/*.html

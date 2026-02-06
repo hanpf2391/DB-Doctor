@@ -64,6 +64,12 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- Spring Boot WebSocket (实时推送) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
         <!-- Spring Boot JDBC (JdbcTemplate) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

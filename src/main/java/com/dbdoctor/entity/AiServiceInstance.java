@@ -61,6 +61,7 @@ public class AiServiceInstance {
      * cloud: 云端API（OpenAI、DeepSeek、Anthropic 等）
      */
     @Column(name = "deployment_type", nullable = false, length = 20)
+    @Builder.Default
     private String deploymentType = DeploymentType.CLOUD.getValue(); // 默认为云端部署
 
     /**

@@ -149,6 +149,7 @@ import {
   Monitor,
   DataAnalysis,
   Setting,
+  TrendCharts,
   Sunny,
   Moon,
   User,
@@ -322,6 +323,7 @@ function getUserAvatarColor(username?: string): string {
 const menuItems = [
   { name: '仪表盘', path: '/', icon: Odometer },
   { name: 'AI 监控', path: '/ai-monitor', icon: Monitor },
+  { name: '监控中心', path: '/monitoring', icon: TrendCharts },
   { name: '慢查询报表', path: '/reports', icon: DataAnalysis },
   { type: 'group', name: '管理' },
   { name: '实例管理', path: '/instances', icon: Connection },
