@@ -5,6 +5,13 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DB-Doctor - MySQL 慢查询智能诊疗系统</title>
+    <!-- 防止主题闪烁：在页面加载前立即应用主题 -->
+    <script>
+      (function() {
+        const theme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

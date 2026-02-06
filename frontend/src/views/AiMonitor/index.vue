@@ -262,12 +262,24 @@ const trendLineOption = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      formatter: '{b}<br/>{a}: {c} 次'
+      formatter: (params: any) => {
+        const param = params[0]
+        return `${param.axisValue}<br/><span style="color: #6366f1;">●</span> ${param.seriesName}: <b>${param.value}</b> 次`
+      },
+      backgroundColor: '#ffffff',
+      borderColor: '#e5e7eb',
+      borderWidth: 1,
+      textStyle: {
+        color: '#374151',
+        fontSize: 13
+      },
+      padding: [10, 15]
     },
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: '8%',
+      top: '10%',
       containLabel: true
     },
     xAxis: {
@@ -275,18 +287,46 @@ const trendLineOption = computed(() => {
       data: hours,
       boundaryGap: false,
       axisLabel: {
-        interval: 2
+        interval: 2,
+        color: '#9ca3af',
+        fontSize: 12
+      },
+      axisLine: {
+        lineStyle: {
+          color: '#e5e7eb'
+        }
       }
     },
     yAxis: {
       type: 'value',
-      name: '调用次数'
+      name: '调用次数',
+      nameTextStyle: {
+        color: '#9ca3af',
+        fontSize: 12
+      },
+      axisLabel: {
+        color: '#9ca3af',
+        fontSize: 12
+      },
+      axisLine: {
+        lineStyle: {
+          color: '#e5e7eb'
+        }
+      },
+      splitLine: {
+        lineStyle: {
+          color: '#f3f4f6',
+          type: 'dashed'
+        }
+      }
     },
     series: [{
       name: '调用次数',
       type: 'line',
       data: counts,
       smooth: true,
+      symbol: 'circle',
+      symbolSize: 6,
       areaStyle: {
         color: {
           type: 'linear',
@@ -295,18 +335,29 @@ const trendLineOption = computed(() => {
           x2: 0,
           y2: 1,
           colorStops: [{
-            offset: 0, color: 'rgba(64, 158, 255, 0.3)'
+            offset: 0, color: 'rgba(99, 102, 241, 0.2)'
           }, {
-            offset: 1, color: 'rgba(64, 158, 255, 0.05)'
+            offset: 1, color: 'rgba(99, 102, 241, 0.02)'
           }]
         }
       },
       lineStyle: {
         width: 2,
-        color: '#409EFF'
+        color: '#6366f1'
       },
       itemStyle: {
-        color: '#409EFF'
+        color: '#6366f1',
+        borderColor: '#ffffff',
+        borderWidth: 2
+      },
+      emphasis: {
+        itemStyle: {
+          color: '#6366f1',
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          shadowBlur: 8,
+          shadowColor: 'rgba(99, 102, 241, 0.3)'
+        }
       }
     }]
   }
@@ -359,8 +410,21 @@ function goToCostAnalysis() {
 /**
  * 导出数据
  */
-function exportData() {
-  ElMessage.info('导出功能开发中...')
+async function exportData() {
+  try {
+    // 导出统计数据为 JSON
+    const dataStr = JSON.stringify(stats.value, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `ai-monitor-stats-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('数据导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  }
 }
 
 /**
@@ -420,6 +484,10 @@ onMounted(() => {
 .stat-card {
   text-align: center;
   transition: transform 0.2s;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .stat-card:hover {
@@ -445,7 +513,7 @@ onMounted(() => {
 /* 自定义统计卡片样式 */
 .statistic-content {
   text-align: center;
-  padding: 10px 0;
+  width: 100%;
 }
 
 .statistic-title {
@@ -455,7 +523,7 @@ onMounted(() => {
 }
 
 .statistic-value {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: bold;
   color: #303133;
 }

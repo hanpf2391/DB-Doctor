@@ -322,18 +322,24 @@ async function loadTop() {
 /**
  * 刷新所有数据
  */
-function refreshAll() {
-  loadStats()
-  loadTrend()
-  loadTop()
-  ElMessage.success('数据已刷新')
+async function refreshAll() {
+  try {
+    await Promise.all([
+      loadStats(),
+      loadTrend(),
+      loadTop()
+    ])
+    // 刷新成功不显示提示
+  } catch (error) {
+    // 刷新失败已经在各自函数中处理了错误提示
+  }
 }
 
 /**
  * 跳转到报告列表
  */
 function goToReports() {
-  router.push('/')
+  router.push('/reports')
 }
 
 /**

@@ -582,6 +582,7 @@ watch(activeTab, (newTab) => {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 8px;
+  color: #7c3aed;
 }
 
 .vital-label {
@@ -589,44 +590,29 @@ watch(activeTab, (newTab) => {
   color: #606266;
 }
 
-.vital-danger {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid #ef4444;
-}
-
-.vital-warning {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid #f59e0b;
-}
-
-.vital-success {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid #10b981;
-}
-
+/* 统一紫色主题 */
+.vital-danger,
+.vital-warning,
+.vital-success,
 .vital-info {
-  background: rgba(107, 114, 128, 0.1);
-  border: 1px solid #6b7280;
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
-[data-theme="dark"] .vital-danger {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: #f87171;
-}
-
-[data-theme="dark"] .vital-warning {
-  background: rgba(245, 158, 11, 0.2);
-  border-color: #fbbf24;
-}
-
-[data-theme="dark"] .vital-success {
-  background: rgba(16, 185, 129, 0.2);
-  border-color: #34d399;
-}
-
+[data-theme="dark"] .vital-danger,
+[data-theme="dark"] .vital-warning,
+[data-theme="dark"] .vital-success,
 [data-theme="dark"] .vital-info {
-  background: rgba(107, 114, 128, 0.2);
-  border-color: #9ca3af;
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+[data-theme="dark"] .vital-value {
+  color: #a78bfa;
+}
+
+[data-theme="dark"] .vital-label {
+  color: #d1d5db;
 }
 
 /* 卡片样式 */
@@ -863,6 +849,104 @@ watch(activeTab, (newTab) => {
   font-size: 12px;
   line-height: 1.5;
   font-weight: 400;
+}
+
+/* ============================================
+   暗色主题 - AI 调用链路追踪
+============================================ */
+
+/* 汇总信息卡片 */
+[data-theme="dark"] .ai-summary-header {
+  background: #000000;
+  border-color: #000000;
+}
+
+[data-theme="dark"] .summary-item {
+  background: #000000;
+}
+
+[data-theme="dark"] .summary-label {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .summary-value {
+  color: #f3f4f6;
+}
+
+/* 时间范围提示 */
+[data-theme="dark"] .ai-trace-content .el-alert {
+  background: #000000;
+}
+
+[data-theme="dark"] .ai-trace-content .el-alert__title {
+  color: #9ca3af;
+}
+
+/* 调用列表 */
+[data-theme="dark"] .invocation-item {
+  background: #000000;
+  border-color: #1f2937;
+}
+
+[data-theme="dark"] .invocation-item:hover {
+  background: #0a0a0a;
+  border-color: #374151;
+}
+
+/* 序号 */
+[data-theme="dark"] .invocation-number {
+  background: #000000;
+  color: #9ca3af;
+}
+
+/* Agent 代码 */
+[data-theme="dark"] .agent-code {
+  color: #9ca3af;
+  background: #000000;
+}
+
+/* 详细信息 */
+[data-theme="dark"] .detail-label {
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .detail-value {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .time-cost {
+  color: #34d399;
+}
+
+/* Token 显示 */
+[data-theme="dark"] .token-input {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .token-separator {
+  color: #4b5563;
+}
+
+[data-theme="dark"] .token-output {
+  color: #34d399;
+}
+
+[data-theme="dark"] .token-total {
+  color: #6b7280;
+}
+
+/* 错误信息 */
+[data-theme="dark"] .error-box {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="dark"] .error-icon {
+  color: #f87171;
+}
+
+[data-theme="dark"] .error-text {
+  color: #fca5a5;
 }
 
 /* 响应式 */

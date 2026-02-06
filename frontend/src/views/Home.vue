@@ -13,13 +13,6 @@
 
       <!-- 筛选器 -->
       <el-form :inline="true" class="filter-form">
-        <el-form-item label="数据库">
-          <el-select v-model="filters.dbName" placeholder="全部" clearable>
-            <el-option label="test" value="test" />
-            <el-option label="production_db" value="production_db" />
-          </el-select>
-        </el-form-item>
-
         <el-form-item label="严重程度">
           <el-select v-model="filters.severity" placeholder="全部" clearable>
             <el-option label="严重" value="CRITICAL" />
@@ -80,9 +73,9 @@
         <!-- 严重程度列 -->
         <el-table-column prop="severityLevel" label="严重程度" width="100">
           <template #default="scope">
-            <el-tag :type="getSeverityTagType(scope.row.severityLevel)">
+            <span class="severity-badge" :class="getSeverityClass(scope.row.severityLevel)">
               {{ getSeverityText(scope.row.severityLevel) }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
 
@@ -97,21 +90,37 @@
         <el-table-column prop="lastSeenTime" label="最后出现" width="170" />
 
         <!-- 操作列 -->
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="scope">
-            <el-button link type="primary" @click="viewReport(scope.row)">
-              <el-icon><View /></el-icon>
-              查看报告
-            </el-button>
-            <el-button
-              link
-              type="success"
-              :loading="scope.row.reanalyzing"
-              @click="handleReanalyze(scope.row)"
-            >
-              <el-icon><RefreshRight /></el-icon>
-              重新诊断
-            </el-button>
+            <div class="action-buttons">
+              <button
+                class="action-btn btn-primary"
+                @click="viewReport(scope.row)"
+                title="查看报告详情"
+              >
+                <svg viewBox="0 0 16 16" fill="currentColor" class="btn-icon">
+                  <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zm.5 11.5a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0-3a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0-3a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zM3.5 3a.5.5 0 0 0-.5.5v9a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-2z"/>
+                </svg>
+                <span>查看报告</span>
+              </button>
+              <button
+                class="action-btn btn-success"
+                :class="{ 'is-loading': scope.row.reanalyzing }"
+                :disabled="scope.row.reanalyzing"
+                @click="handleReanalyze(scope.row)"
+                title="重新分析"
+              >
+                <svg v-if="!scope.row.reanalyzing" viewBox="0 0 16 16" fill="currentColor" class="btn-icon">
+                  <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                </svg>
+                <svg v-else viewBox="0 0 16 16" fill="currentColor" class="btn-icon spin">
+                  <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                  <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                </svg>
+                <span>{{ scope.row.reanalyzing ? '分析中...' : '重新分析' }}</span>
+              </button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -153,7 +162,6 @@ const showReportDetail = ref(false)
 const selectedReportId = ref(0)
 
 const filters = reactive({
-  dbName: '',
   severity: ''
 })
 
@@ -197,7 +205,6 @@ function applyFilters() {
  * 重置筛选条件
  */
 function resetFilters() {
-  filters.dbName = ''
   filters.severity = ''
   applyFilters()
 }
@@ -251,13 +258,13 @@ function getQueryTimeType(time: number): 'success' | 'warning' | 'danger' {
 }
 
 /**
- * 获取严重程度 Tag 类型
+ * 获取严重程度样式类
  */
-function getSeverityTagType(severity: string): 'success' | 'warning' | 'danger' | 'info' {
-  if (severity.includes('严重')) return 'danger'
-  if (severity.includes('警告')) return 'warning'
-  if (severity.includes('注意')) return 'info'
-  return 'success'
+function getSeverityClass(severity: string): string {
+  if (severity.includes('严重')) return 'severity-critical'
+  if (severity.includes('警告')) return 'severity-warning'
+  if (severity.includes('注意')) return 'severity-note'
+  return 'severity-normal'
 }
 
 /**
@@ -305,9 +312,335 @@ onMounted(() => {
 .fingerprint-text {
   font-family: 'Courier New', monospace;
   font-size: 13px;
-  color: #606266;
-  background-color: #f5f7fa;
+  color: var(--color-text-primary, #606266);
+  background-color: var(--color-bg-secondary, #f5f7fa);
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+/* 暗色主题下的指纹文本 */
+[data-theme="dark"] .fingerprint-text {
+  color: #f3f4f6;
+  background-color: #374151;
+}
+
+/* 严重程度标签 - 优化后的样式 */
+.severity-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* 浅色主题 */
+.severity-critical {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.severity-warning {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.severity-note {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.severity-normal {
+  background-color: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+/* 暗色主题下的严重程度标签 - 柔和的颜色 */
+[data-theme="dark"] .severity-critical {
+  background-color: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+}
+
+[data-theme="dark"] .severity-warning {
+  background-color: rgba(251, 191, 36, 0.08);
+  color: #fcd34d;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+[data-theme="dark"] .severity-note {
+  background-color: rgba(96, 165, 250, 0.08);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+[data-theme="dark"] .severity-normal {
+  background-color: rgba(74, 222, 128, 0.08);
+  color: #86efac;
+  border: 1px solid rgba(74, 222, 128, 0.2);
+}
+
+/* 表格行 hover 效果 */
+.reports-page :deep(.el-table__body tr:hover > td) {
+  background-color: var(--color-bg-hover, #f5f7fa) !important;
+}
+
+[data-theme="dark"] .reports-page :deep(.el-table__body tr:hover > td) {
+  background-color: #374151 !important;
+}
+
+/* 筛选表单标签样式优化 */
+.filter-form :deep(.el-form-item__label) {
+  font-size: 13px;
+  color: var(--color-text-secondary, #6b7280);
+  font-weight: 500;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-form-item__label) {
+  color: #d1d5db;
+}
+
+/* ============================================
+   下拉选择 - Notion 风格
+============================================ */
+
+.filter-form :deep(.el-select) {
+  width: 160px;
+}
+
+/* Select 输入框 */
+.filter-form :deep(.el-select__wrapper) {
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  box-shadow: none;
+  transition: all 0.2s ease;
+}
+
+.filter-form :deep(.el-select__wrapper:hover) {
+  border-color: #d1d5db;
+}
+
+.filter-form :deep(.el-select__wrapper.is-focused) {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1);
+}
+
+.filter-form :deep(.el-select__placeholder) {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.filter-form :deep(.el-select__selected-item) {
+  color: #374151;
+  font-size: 13px;
+}
+
+.filter-form :deep(.el-select__input) {
+  font-size: 13px;
+}
+
+/* 下拉箭头 */
+.filter-form :deep(.el-select__caret) {
+  color: #9ca3af;
+}
+
+/* 下拉面板 */
+.filter-form :deep(.el-select-dropdown) {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+}
+
+.filter-form :deep(.el-select-dropdown__item) {
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #374151;
+  transition: all 0.15s ease;
+}
+
+.filter-form :deep(.el-select-dropdown__item:hover) {
+  background: #f3f4f6;
+}
+
+.filter-form :deep(.el-select-dropdown__item.is-selected) {
+  background: rgba(139, 92, 246, 0.08);
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+.filter-form :deep(.el-select-dropdown__item.is-selected:hover) {
+  background: rgba(139, 92, 246, 0.12);
+}
+
+/* 暗色主题 */
+[data-theme="dark"] .filter-form :deep(.el-select__wrapper) {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select__wrapper:hover) {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select__wrapper.is-focused) {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select__placeholder) {
+  color: #6b7280;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select__selected-item) {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select__caret) {
+  color: #6b7280;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select-dropdown) {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select-dropdown__item) {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select-dropdown__item:hover) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select-dropdown__item.is-selected) {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+[data-theme="dark"] .filter-form :deep(.el-select-dropdown__item.is-selected:hover) {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+/* ============================================
+   操作按钮 - 商业化设计
+   设计灵感：Linear, Vercel, Stripe
+============================================ */
+
+.action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  background: transparent;
+}
+
+.action-btn .btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.action-btn span {
+  font-size: 13px;
+}
+
+/* 主要按钮 - 蓝色 */
+.btn-primary {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.btn-primary:hover {
+  background: rgba(37, 99, 235, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* 成功按钮 - 绿色 */
+.btn-success {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.08);
+}
+
+.btn-success:hover {
+  background: rgba(5, 150, 105, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.15);
+}
+
+.btn-success:active {
+  transform: translateY(0);
+}
+
+/* 禁用状态 */
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* 加载状态 */
+.action-btn.is-loading {
+  cursor: wait;
+}
+
+.action-btn.is-loading .btn-icon.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   暗色主题 - 操作按钮
+============================================ */
+
+[data-theme="dark"] .btn-primary {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+[data-theme="dark"] .btn-success {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+[data-theme="dark"] .btn-success:hover {
+  background: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 }
 </style>

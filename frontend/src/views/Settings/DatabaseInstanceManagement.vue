@@ -1,145 +1,151 @@
 <template>
   <div class="database-instance-management">
-    <!-- 操作栏 -->
-    <div class="action-bar modern-card">
-      <div class="action-left">
-        <el-button type="primary" size="large" @click="handleCreate" class="btn-gradient">
-          <el-icon style="margin-right: 6px"><Plus /></el-icon>
-          新增数据库实例
-        </el-button>
-      </div>
-      <div class="action-right">
+    <!-- 数据库实例卡片 -->
+    <el-card class="instances-card" shadow="never">
+      <!-- 卡片头部：标题和操作按钮 -->
+      <template #header>
+        <div class="card-header">
+          <h3 class="card-title">数据库实例</h3>
+          <div class="card-actions">
+            <el-button type="primary" @click="handleCreate">
+              <el-icon><Plus /></el-icon>
+              新增实例
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 搜索栏 -->
+      <div class="filter-form">
         <el-input
           v-model="searchText"
           placeholder="搜索实例名称..."
-          prefix-icon="Search"
-          style="width: 300px"
           clearable
-        />
+          style="width: 300px"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
       </div>
-    </div>
 
-    <!-- 实例列表表格 -->
-    <div class="instances-table modern-card">
+      <!-- 实例列表表格 -->
       <el-table
         :data="filteredInstances"
-        style="width: 100%"
         v-loading="loading"
         :empty-text="'暂无数据库实例，点击上方按钮新增'"
         stripe
-        border
+        class="modern-table"
+        style="width: 100%; margin-top: 16px"
       >
         <!-- 实例名称 -->
-        <el-table-column prop="instanceName" label="实例名称" min-width="160">
+        <el-table-column label="实例名称" min-width="150" fixed="left">
           <template #default="{ row }">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-weight: 500;">{{ row.instanceName }}</span>
-            </div>
+            <span class="name">{{ row.instanceName }}</span>
           </template>
         </el-table-column>
-
-        <!-- 连接地址 -->
-        <el-table-column label="连接地址" min-width="200">
-          <template #default="{ row }">
-            <span style="font-family: 'SF Mono', Monaco, monospace; font-size: 13px; color: var(--color-text-secondary);">
-              {{ formatUrl(row.url) }}
-            </span>
-          </template>
-        </el-table-column>
-
-        <!-- 用户名 -->
-        <el-table-column prop="username" label="用户名" width="140" />
 
         <!-- 环境 -->
-        <el-table-column label="环境" width="100">
+        <el-table-column label="环境" width="120" align="center">
           <template #default="{ row }">
-            <el-tag
-              v-if="row.environment"
-              size="small"
-              :type="getEnvironmentTagType(row.environment)"
-              effect="plain"
-            >
+            <el-tag v-if="row.environment" size="small" :type="getEnvironmentTagType(row.environment)" effect="light">
               {{ getEnvironmentLabel(row.environment) }}
             </el-tag>
             <span v-else style="color: var(--color-text-muted);">-</span>
           </template>
         </el-table-column>
 
-        <!-- 验证状态 -->
-        <el-table-column label="验证状态" width="140">
+        <!-- 类型 -->
+        <el-table-column label="类型" width="150" align="center">
           <template #default="{ row }">
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-              <el-tag
-                v-if="row.isValid"
-                type="success"
-                effect="plain"
-                size="small"
-              >
-                <el-icon style="margin-right: 4px; vertical-align: -2px;"><CircleCheck /></el-icon>
-                已验证
-              </el-tag>
-              <el-tag v-else type="info" effect="plain" size="small">未验证</el-tag>
-              <span
-                v-if="row.lastValidatedAt"
-                style="font-size: 11px; color: var(--color-text-muted);"
-              >
-                {{ formatTime(row.lastValidatedAt) }}
-              </span>
-            </div>
+            <el-tag size="small" type="success" effect="light">
+              {{ row.instanceType?.toUpperCase() || 'MYSQL' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <!-- 连接地址 -->
+        <el-table-column label="连接地址" min-width="200">
+          <template #default="{ row }">
+            <span class="url-text">{{ formatUrl(row.url) }}</span>
+          </template>
+        </el-table-column>
+
+        <!-- 用户名 -->
+        <el-table-column label="用户名" width="120">
+          <template #default="{ row }">
+            <span>{{ row.username }}</span>
           </template>
         </el-table-column>
 
         <!-- 启用状态 -->
-        <el-table-column label="启用" width="80" align="center">
+        <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-switch
-              v-model="row.isEnabled"
-              @change="(val) => handleToggleEnabled(row, val)"
-              :loading="row._toggling"
-              inline-prompt
-              active-text="启"
-              inactive-text="禁"
-            />
+            <div class="status-cell">
+              <el-switch
+                v-model="row.isEnabled"
+                @change="(val) => handleToggleEnabled(row, val)"
+                :loading="row._toggling"
+              />
+            </div>
+          </template>
+        </el-table-column>
+
+        <!-- 验证状态 -->
+        <el-table-column label="连接验证" width="120" align="center">
+          <template #default="{ row }">
+            <el-button v-if="row.isValid" type="success" size="small" disabled>
+              <el-icon style="margin-right: 4px;"><CircleCheck /></el-icon>
+              已验证
+            </el-button>
+            <el-button v-else type="danger" size="small" disabled>
+              <el-icon style="margin-right: 4px;"><CircleClose /></el-icon>
+              未验证
+            </el-button>
+          </template>
+        </el-table-column>
+
+        <!-- 描述 -->
+        <el-table-column label="描述" min-width="180">
+          <template #default="{ row }">
+            <span>{{ row.description || '-' }}</span>
           </template>
         </el-table-column>
 
         <!-- 操作 -->
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="280" align="center" fixed="right">
           <template #default="{ row }">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <div class="action-buttons">
               <el-button
                 type="primary"
-                link
                 size="small"
                 @click="handleValidate(row)"
                 :loading="row._validating"
               >
-                <el-icon style="margin-right: 4px; vertical-align: -2px;"><Connection /></el-icon>
-                测试连接
+                <el-icon style="margin-right: 4px;"><Connection /></el-icon>
+                测试
               </el-button>
               <el-button
-                type="primary"
-                link
+                type="info"
                 size="small"
                 @click="handleEdit(row)"
               >
-                <el-icon style="margin-right: 4px; vertical-align: -2px;"><Edit /></el-icon>
+                <el-icon style="margin-right: 4px;"><Edit /></el-icon>
                 编辑
               </el-button>
               <el-button
                 type="danger"
-                link
                 size="small"
                 @click="handleDelete(row)"
               >
-                <el-icon style="margin-right: 4px; vertical-align: -2px;"><Delete /></el-icon>
+                <el-icon style="margin-right: 4px;"><Delete /></el-icon>
                 删除
               </el-button>
             </div>
           </template>
         </el-table-column>
       </el-table>
-    </div>
+    </el-card>
 
     <!-- 新增/编辑对话框 -->
     <el-dialog
@@ -209,7 +215,6 @@
           type="primary"
           @click="handleTestBeforeSave"
           :loading="testing"
-          class="btn-gradient"
         >
           <el-icon style="margin-right: 6px"><Connection /></el-icon>
           测试并保存
@@ -273,7 +278,7 @@
           </el-button>
           <div v-if="testResultData?.overallPassed">
             <el-button @click="showTestResult = false">返回修改</el-button>
-            <el-button type="primary" @click="handleSaveAfterTest" class="btn-gradient">
+            <el-button type="primary" @click="handleSaveAfterTest">
               <el-icon style="margin-right: 6px"><Check /></el-icon>
               确认保存
             </el-button>
@@ -295,7 +300,10 @@ import {
   Link,
   User,
   CircleCheck,
-  Check
+  Check,
+  CircleClose,
+  ArrowDown,
+  Search
 } from '@element-plus/icons-vue'
 import {
   getAllDatabaseInstances,
@@ -558,39 +566,362 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ============================================
+   数据库实例管理 - 卡片式设计
+   参照慢查询报表设计风格
+============================================ */
+
 .database-instance-management {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
+  width: 100%;
 }
 
-/* 操作栏 */
-.action-bar {
+/* === 卡片头部 === */
+.card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-lg);
 }
 
-.action-left,
-.action-right {
+.card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.card-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* === 筛选表单 === */
+.filter-form {
+  margin-bottom: 16px;
+}
+
+/* === 表格样式 === */
+:deep(.modern-table) {
+  font-size: 14px;
+}
+
+:deep(.modern-table .el-table__header th) {
+  background: var(--color-bg-sidebar);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 12px 16px;
+}
+
+:deep(.modern-table .el-table__body td) {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+:deep(.modern-table .el-table__row:hover > td) {
+  background: var(--color-bg-hover);
+}
+
+/* 修复标签单元格垂直对齐和不被截断 */
+:deep(.modern-table .el-table__body td .el-tag) {
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: none !important;
+}
+
+/* 确保单元格内容不被截断 */
+:deep(.modern-table .el-table__body td) {
+  overflow: visible !important;
+}
+
+:deep(.modern-table .el-table__cell) {
+  overflow: visible !important;
+}
+
+/* 修复表格列的cell不溢出 */
+:deep(.el-table__cell) {
+  overflow: visible !important;
+}
+
+/* 确保标签容器不被截断 */
+:deep(.el-tag) {
+  max-width: none !important;
+}
+
+/* === 单元格样式 === */
+.name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.url-text {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.status-cell {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  justify-content: center;
 }
 
-/* 表格容器 */
-.instances-table {
-  padding: var(--spacing-lg);
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
 }
 
-/* 测试结果 */
+/* === 测试结果 === */
 .test-result-content {
   width: 100%;
 }
 
 .test-result-content h4 {
-  margin: var(--spacing-lg) 0 var(--spacing-sm);
-  color: var(--color-gray-800);
+  margin: 20px 0 12px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ============================================
+   对话框纯色主题适配
+============================================ */
+
+/* === 新增/编辑对话框 === */
+:deep(.el-dialog) {
+  background: var(--color-bg-page);
+  border-radius: var(--radius-2xl);
+}
+
+:deep(.el-dialog__header) {
+  border-bottom: 1px solid var(--color-border);
+  padding: 20px 24px;
+  background: var(--color-bg-page);
+}
+
+:deep(.el-dialog__title) {
+  color: var(--color-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+:deep(.el-dialog__body) {
+  padding: 24px;
+  background: var(--color-bg-page);
+}
+
+:deep(.el-dialog__footer) {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-page);
+}
+
+/* === 表单样式 === */
+:deep(.el-form-item__label) {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+:deep(.el-input__wrapper) {
+  background: var(--color-bg-sidebar);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  transition: all var(--transition-base);
+}
+
+:deep(.el-input__wrapper:hover) {
+  border-color: var(--color-primary);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+:deep(.el-input__inner) {
+  color: var(--color-text-primary);
+  background: transparent;
+}
+
+:deep(.el-input__inner::placeholder) {
+  color: var(--color-text-placeholder);
+}
+
+:deep(.el-textarea__inner) {
+  background: var(--color-bg-sidebar);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  transition: all var(--transition-base);
+}
+
+:deep(.el-textarea__inner:hover) {
+  border-color: var(--color-primary);
+}
+
+:deep(.el-textarea__inner:focus) {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+/* === 下拉选择框 === */
+:deep(.el-select__wrapper) {
+  background: var(--color-bg-sidebar);
+  border-color: var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+:deep(.el-select__wrapper:hover) {
+  border-color: var(--color-primary);
+}
+
+:deep(.el-select__wrapper.is-focus) {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+:deep(.el-select__input) {
+  color: var(--color-text-primary);
+}
+
+:deep(.el-select__placeholder) {
+  color: var(--color-text-placeholder);
+}
+
+/* === 按钮纯色样式 === */
+:deep(.el-dialog__footer .el-button--primary) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: none;
+  background-image: none;
+  transition: all var(--transition-base);
+}
+
+:deep(.el-dialog__footer .el-button--primary:hover) {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  box-shadow: none;
+  background-image: none;
+  transform: translateY(-1px);
+}
+
+:deep(.el-dialog__footer .el-button--primary:active) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  transform: translateY(0);
+}
+
+:deep(.el-button--default) {
+  background: var(--color-bg-sidebar);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+  transition: all var(--transition-base);
+}
+
+:deep(.el-button--default:hover) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* === 验证结果对话框 === */
+:deep(.el-result__title) {
+  color: var(--color-text-primary);
+}
+
+:deep(.el-result__subtitle) {
+  color: var(--color-text-secondary);
+}
+
+:deep(.el-descriptions) {
+  background: var(--color-bg-page);
+}
+
+:deep(.el-descriptions__label) {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-sidebar);
+}
+
+:deep(.el-descriptions__content) {
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+}
+
+:deep(.el-descriptions.is-bordered .el-descriptions__cell) {
+  border-color: var(--color-border);
+}
+
+/* === 暗色主题适配 === */
+[data-theme="dark"] :deep(.el-input__wrapper) {
+  background: #0a0a0a;
+  border-color: #262626;
+}
+
+[data-theme="dark"] :deep(.el-input__wrapper:hover) {
+  border-color: #818cf8;
+}
+
+[data-theme="dark"] :deep(.el-input__wrapper.is-focus) {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] :deep(.el-textarea__inner) {
+  background: #0a0a0a;
+  border-color: #262626;
+  color: #ffffff;
+}
+
+[data-theme="dark"] :deep(.el-textarea__inner:hover) {
+  border-color: #818cf8;
+}
+
+[data-theme="dark"] :deep(.el-textarea__inner:focus) {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] :deep(.el-select__wrapper) {
+  background: #0a0a0a;
+  border-color: #262626;
+}
+
+[data-theme="dark"] :deep(.el-select__wrapper:hover) {
+  border-color: #818cf8;
+}
+
+[data-theme="dark"] :deep(.el-select__wrapper.is-focus) {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+[data-theme="dark"] :deep(.el-dialog__footer .el-button--primary) {
+  background: #818cf8;
+  border-color: #818cf8;
+  color: #000000;
+}
+
+[data-theme="dark"] :deep(.el-dialog__footer .el-button--primary:hover) {
+  background: #a5b4fc;
+  border-color: #a5b4fc;
+}
+
+[data-theme="dark"] :deep(.el-button--default) {
+  background: #1a1a1a;
+  border-color: #262626;
+  color: #d4d4d4;
+}
+
+[data-theme="dark"] :deep(.el-button--default:hover) {
+  background: #2a2a2a;
+  border-color: #818cf8;
+  color: #818cf8;
 }
 </style>

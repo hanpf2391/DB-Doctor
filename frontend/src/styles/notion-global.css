@@ -30,6 +30,8 @@
 
   /* 功能色 */
   --color-success: #10b981;
+  --color-success-bg: #d1fae5;
+  --color-success-border: rgba(16, 185, 129, 0.3);
   --color-warning: #f59e0b;
   --color-danger: #ef4444;
   --color-info: #6366f1;
@@ -92,6 +94,8 @@
 
   /* 功能色调整 */
   --color-success: #34d399;
+  --color-success-bg: rgba(52, 211, 153, 0.15);
+  --color-success-border: rgba(52, 211, 153, 0.3);
   --color-warning: #fbbf24;
   --color-danger: #f87171;
   --color-info: #818cf8;
@@ -106,39 +110,64 @@
 
 /* === 主题切换平滑过渡效果 === */
 
-/* 为所有元素添加颜色过渡 */
-*,
-*::before,
-*::after {
+/* 主题切换时的全局过渡（只在切换时启用） */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
   transition-property:
     background-color,
     border-color,
     color,
-    background,
-    box-shadow;
-  transition-duration: 0.3s;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow,
+    background !important;
+  transition-duration: 0.3s !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 /* 例外：不需要过渡的元素 */
-*:not([data-theme]) *:not(.no-transition),
-input,
-textarea,
-select,
-video,
-img,
-code,
-pre {
+.theme-transitioning input,
+.theme-transitioning textarea,
+.theme-transitioning select,
+.theme-transitioning video,
+.theme-transitioning img,
+.theme-transitioning canvas,
+.theme-transitioning code,
+.theme-transitioning pre {
   transition: none !important;
 }
 
-/* 可选过渡的类 */
+/* View Transitions API 支持 */
+@supports (view-transition-name: none) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.3s;
+  }
+
+  ::view-transition-old(root) {
+    animation-name: fade-out;
+  }
+
+  ::view-transition-new(root) {
+    animation-name: fade-in;
+  }
+
+  @keyframes fade-out {
+    to { opacity: 0; }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* 普通元素的悬停过渡（不需要主题切换） */
 .has-transition {
   transition:
-    background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body {

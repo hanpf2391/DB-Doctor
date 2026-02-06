@@ -13,24 +13,10 @@
     <template v-else>
       <!-- 浅色侧边栏 - Notion 风格 -->
       <aside class="sidebar">
-        <!-- Logo 区域 -->
-        <div class="sidebar-header">
-          <div class="logo-avatar">
-            <span class="logo-text">D</span>
-          </div>
-          <span class="logo-title">DB-Doctor</span>
-        </div>
-
-        <!-- 搜索框 -->
-        <div class="search-wrapper">
-          <el-icon class="search-icon"><Search /></el-icon>
-          <input
-            v-model="searchText"
-            type="text"
-            placeholder="搜索..."
-            class="search-input"
-          />
-          <span class="search-shortcut">⌘K</span>
+        <!-- 侧边栏标题 -->
+        <div class="sidebar-title">
+          <img src="/logo.png" alt="DB-Doctor" class="title-logo" />
+          <span class="title-text">DB-Doctor</span>
         </div>
 
         <!-- 导航菜单 -->
@@ -83,15 +69,6 @@
               <h1 class="page-title">{{ currentPageTitle }}</h1>
             </div>
             <div class="header-right">
-              <!-- 修改密码按钮 -->
-              <el-button
-                type="primary"
-                :icon="Lock"
-                @click="showChangePasswordDialog = true"
-              >
-                修改密码
-              </el-button>
-
               <!-- 用户下拉菜单 -->
               <el-dropdown trigger="click" @command="handleUserMenuCommand">
                 <div class="user-menu-trigger">
@@ -214,28 +191,41 @@ onMounted(() => {
 })
 
 // 监听主题变化并应用
-watch(theme, () => {
+watch(theme, (newTheme) => {
+  localStorage.setItem('theme', newTheme)
   applyTheme()
-  localStorage.setItem('theme', theme.value)
-})
+}, { immediate: true })
 
-// 应用主题到 DOM
+// 应用主题到 DOM（使用 View Transitions API 优化）
 function applyTheme() {
   const html = document.documentElement
+  const themeValue = theme.value === 'dark' ? 'dark' : ''
 
-  // 添加主题切换过渡类
-  html.classList.add('theme-transitioning')
-
-  if (theme.value === 'dark') {
-    html.setAttribute('data-theme', 'dark')
+  // 检查浏览器是否支持 View Transitions API
+  if (document.startViewTransition) {
+    // 使用 View Transitions API 实现丝滑切换
+    document.startViewTransition(() => {
+      if (themeValue) {
+        html.setAttribute('data-theme', themeValue)
+      } else {
+        html.removeAttribute('data-theme')
+      }
+    })
   } else {
-    html.removeAttribute('data-theme')
-  }
+    // 降级方案：使用 CSS 过渡
+    html.classList.add('theme-transitioning')
 
-  // 移除过渡类（让过渡动画完成）
-  setTimeout(() => {
-    html.classList.remove('theme-transitioning')
-  }, 300)
+    if (themeValue) {
+      html.setAttribute('data-theme', themeValue)
+    } else {
+      html.removeAttribute('data-theme')
+    }
+
+    // 移除过渡类（让过渡动画完成）
+    setTimeout(() => {
+      html.classList.remove('theme-transitioning')
+    }, 300)
+  }
 }
 
 // 切换主题
@@ -324,32 +314,9 @@ function getUserAvatarText(username?: string): string {
   return username[0].toUpperCase()
 }
 
-// 获取用户头像颜色（根据用户名生成固定的颜色）
+// 获取用户头像颜色（固定紫色）
 function getUserAvatarColor(username?: string): string {
-  if (!username) return '#6366f1'
-
-  // 预定义的颜色列表（柔和的色调）
-  const colors = [
-    '#6366f1', // 靛蓝
-    '#8b5cf6', // 紫色
-    '#ec4899', // 粉色
-    '#f43f5e', // 红色
-    '#f97316', // 橙色
-    '#eab308', // 黄色
-    '#22c55e', // 绿色
-    '#14b8a6', // 青色
-    '#0ea5e9', // 蓝色
-    '#64748b'  // 灰色
-  ]
-
-  // 根据用户名计算索引
-  let hash = 0
-  for (let i = 0; i < username.length; i++) {
-    hash = username.charCodeAt(i) + ((hash << 5) - hash)
-  }
-
-  const index = Math.abs(hash) % colors.length
-  return colors[index]
+  return 'rgb(139, 92, 246)'
 }
 
 const menuItems = [
@@ -362,7 +329,10 @@ const menuItems = [
 ]
 
 function isActive(path: string): boolean {
-  return route.path === path
+  if (path === '/') {
+    return route.path === '/'
+  }
+  return route.path.startsWith(path)
 }
 </script>
 
@@ -383,6 +353,33 @@ function isActive(path: string): boolean {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+}
+
+/* 侧边栏标题 - Notion 风格极简设计 */
+.sidebar-title {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.title-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-theme="dark"] .title-text {
+  color: #737373;
 }
 
 /* Logo 区域 */
