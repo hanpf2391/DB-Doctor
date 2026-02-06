@@ -26,7 +26,6 @@ public class ReportController {
      *
      * @param page 页码（默认 1）
      * @param size 每页数量（默认 20）
-     * @param dbName 数据库名筛选（可选）
      * @param severity 严重程度筛选（可选）
      * @return 报表列表
      */
@@ -34,12 +33,11 @@ public class ReportController {
     public Map<String, Object> getReports(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer size,
-            @RequestParam(required = false) String dbName,
             @RequestParam(required = false) String severity
     ) {
-        log.info("查询报表列表: page={}, size={}, dbName={}, severity={}", page, size, dbName, severity);
+        log.info("查询报表列表: page={}, size={}, severity={}", page, size, severity);
 
-        Map<String, Object> result = reportService.getReports(page, size, dbName, severity);
+        Map<String, Object> result = reportService.getReports(page, size, severity);
 
         return Map.of(
                 "code", 200,

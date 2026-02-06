@@ -40,17 +40,11 @@ public class ReportService {
      *
      * @param page 页码（从 1 开始）
      * @param size 每页数量
-     * @param dbName 数据库名筛选（可选）
      * @param severityLevel 严重程度筛选（可选）
      * @return 报表数据
      */
-    public Map<String, Object> getReports(int page, int size, String dbName, String severityLevel) {
-        log.info("查询报表列表: page={}, size={}, dbName={}, severity={}", page, size, dbName, severityLevel);
-
-        // 处理空字符串参数，转换为 null（避免 SQL 查询时 t.dbName = '' 的问题）
-        if (dbName != null && dbName.trim().isEmpty()) {
-            dbName = null;
-        }
+    public Map<String, Object> getReports(int page, int size, String severityLevel) {
+        log.info("查询报表列表: page={}, size={}, severity={}", page, size, severityLevel);
 
         // 转换严重程度字符串为枚举
         SeverityLevel severity = null;
@@ -65,8 +59,8 @@ public class ReportService {
         // 创建分页参数（按最后见到时间倒序）
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(Sort.Direction.DESC, "lastSeenTime"));
 
-        // 执行查询
-        Page<SlowQueryTemplate> result = templateRepository.findByFilters(dbName, severity, pageable);
+        // 执行查询（dbName 设为 null 表示不筛选数据库）
+        Page<SlowQueryTemplate> result = templateRepository.findByFilters(null, severity, pageable);
 
         // 转换为 DTO
         var records = result.getContent().stream()
