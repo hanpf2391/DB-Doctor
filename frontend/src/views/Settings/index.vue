@@ -39,43 +39,26 @@
 
       <!-- 监控与通知 -->
       <div v-else-if="activeTab === 'monitor'" class="config-section">
-        <!-- 监控配置卡片 -->
-        <div class="config-card">
-          <div class="card-header">
-            <div class="header-left">
-              <div class="header-icon icon-warning">
-                <el-icon :size="20"><Bell /></el-icon>
-              </div>
-              <div class="header-text">
-                <h3 class="card-title">监控配置</h3>
-                <p class="card-desc">配置慢查询监控告警规则</p>
-              </div>
-            </div>
-            <el-tag size="small" type="info" effect="light">开发中</el-tag>
-          </div>
-          <div class="card-body">
-            <el-empty description="监控配置功能开发中..." />
+        <!-- 子 tab 切换 -->
+        <div class="sub-tabs">
+          <div
+            v-for="item in monitorSubTabs"
+            :key="item.key"
+            :class="['sub-tab-item', { active: activeMonitorTab === item.key }]"
+            @click="activeMonitorTab = item.key"
+          >
+            <el-icon class="sub-tab-icon">
+              <component :is="item.icon" />
+            </el-icon>
+            <span class="sub-tab-text">{{ item.title }}</span>
           </div>
         </div>
 
-        <!-- 通知方式卡片 -->
-        <div class="config-card">
-          <div class="card-header">
-            <div class="header-left">
-              <div class="header-icon icon-info">
-                <el-icon :size="20"><Message /></el-icon>
-              </div>
-              <div class="header-text">
-                <h3 class="card-title">通知方式</h3>
-                <p class="card-desc">配置告警通知渠道（邮件、钉钉、企业微信）</p>
-              </div>
-            </div>
-            <el-tag size="small" type="info" effect="light">开发中</el-tag>
-          </div>
-          <div class="card-body">
-            <el-empty description="通知配置功能开发中..." />
-          </div>
-        </div>
+        <!-- 告警规则配置 -->
+        <AlertManagement v-if="activeMonitorTab === 'alert'" />
+
+        <!-- 通知配置 -->
+        <NotificationConfig v-else-if="activeMonitorTab === 'notification'" />
       </div>
     </div>
   </div>
@@ -90,11 +73,15 @@ import {
   Bell,
   Message,
   CircleCheck,
-  ArrowRight
+  ArrowRight,
+  Warning
 } from '@element-plus/icons-vue'
 import BasicConfig from './BasicConfig.vue'
+import AlertManagement from '../Monitoring/AlertManagement.vue'
+import NotificationConfig from '../Monitoring/NotificationConfig.vue'
 
 const activeTab = ref('basic')
+const activeMonitorTab = ref('alert')
 
 interface MenuItem {
   key: string
@@ -118,6 +105,25 @@ const menuItems: MenuItem[] = [
     description: '配置监控告警和通知方式',
     icon: Bell,
     type: 'warning'
+  }
+]
+
+interface MonitorSubTab {
+  key: string
+  title: string
+  icon: any
+}
+
+const monitorSubTabs: MonitorSubTab[] = [
+  {
+    key: 'alert',
+    title: '告警规则',
+    icon: Warning
+  },
+  {
+    key: 'notification',
+    title: '通知配置',
+    icon: Message
   }
 ]
 
@@ -254,6 +260,52 @@ function handleMenuClick(key: string) {
   gap: 24px;
 }
 
+/* === 子 Tab 切换 === */
+.sub-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 4px;
+  background: var(--color-bg-sidebar);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  width: fit-content;
+  margin-bottom: 16px;
+}
+
+.sub-tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  font-size: 14px;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.sub-tab-item:hover {
+  color: var(--color-text-primary);
+}
+
+.sub-tab-item.active {
+  background: var(--color-bg-page);
+  color: var(--color-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.sub-tab-icon {
+  font-size: 16px;
+}
+
+.sub-tab-text {
+  font-size: 14px;
+}
+
 /* === 配置卡片 === */
 .config-card {
   background: var(--color-bg-page);
@@ -374,5 +426,24 @@ function handleMenuClick(key: string) {
 
 [data-theme="dark"] .icon-info {
   background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+[data-theme="dark"] .sub-tabs {
+  background: #1a1a1a;
+  border-color: #262626;
+}
+
+[data-theme="dark"] .sub-tab-item {
+  color: #a3a3a3;
+}
+
+[data-theme="dark"] .sub-tab-item:hover {
+  color: #d4d4d4;
+}
+
+[data-theme="dark"] .sub-tab-item.active {
+  background: #2a2a2a;
+  color: #818cf8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 </style>
