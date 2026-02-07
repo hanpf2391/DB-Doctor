@@ -120,6 +120,110 @@ export const alertApi = {
 }
 
 /**
+ * 告警规则 API
+ */
+export const alertRuleApi = {
+  /**
+   * 查询告警规则列表
+   */
+  getAlertRules: (params: {
+    page?: number
+    size?: number
+  }) => {
+    return request({
+      url: '/alert-rules',
+      method: 'get',
+      params
+    })
+  },
+
+  /**
+   * 查询启用的告警规则
+   */
+  getEnabledAlertRules: () => {
+    return request({
+      url: '/alert-rules/enabled',
+      method: 'get'
+    })
+  },
+
+  /**
+   * 查询告警规则详情
+   */
+  getAlertRule: (id: number) => {
+    return request({
+      url: `/alert-rules/${id}`,
+      method: 'get'
+    })
+  },
+
+  /**
+   * 创建告警规则
+   */
+  createAlertRule: (data: {
+    name: string
+    displayName: string
+    type: string
+    metricName: string
+    conditionOperator: string
+    thresholdValue?: number
+    severity: string
+    enabled?: boolean
+    coolDownMinutes?: number
+    description?: string
+  }) => {
+    return request({
+      url: '/alert-rules',
+      method: 'post',
+      data
+    })
+  },
+
+  /**
+   * 更新告警规则
+   */
+  updateAlertRule: (id: number, data: {
+    name: string
+    displayName: string
+    type: string
+    metricName: string
+    conditionOperator: string
+    thresholdValue?: number
+    severity: string
+    enabled?: boolean
+    coolDownMinutes?: number
+    description?: string
+  }) => {
+    return request({
+      url: `/alert-rules/${id}`,
+      method: 'put',
+      data
+    })
+  },
+
+  /**
+   * 删除告警规则
+   */
+  deleteAlertRule: (id: number) => {
+    return request({
+      url: `/alert-rules/${id}`,
+      method: 'delete'
+    })
+  },
+
+  /**
+   * 启用/禁用告警规则
+   */
+  toggleAlertRule: (id: number, enabled: boolean) => {
+    return request({
+      url: `/alert-rules/${id}/toggle`,
+      method: 'put',
+      data: { enabled }
+    })
+  }
+}
+
+/**
  * 通知配置 API
  */
 export const notificationConfigApi = {
@@ -178,5 +282,6 @@ export const notificationConfigApi = {
 export default {
   systemHealthApi,
   alertApi,
+  alertRuleApi,
   notificationConfigApi
 }

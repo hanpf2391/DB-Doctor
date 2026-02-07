@@ -55,7 +55,7 @@
         </div>
 
         <!-- 告警规则配置 -->
-        <AlertManagement v-if="activeMonitorTab === 'alert'" />
+        <AlertRuleConfig v-if="activeMonitorTab === 'alert'" />
 
         <!-- 通知配置 -->
         <NotificationConfig v-else-if="activeMonitorTab === 'notification'" />
@@ -77,7 +77,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import BasicConfig from './BasicConfig.vue'
-import AlertManagement from '../Monitoring/AlertManagement.vue'
+import AlertRuleConfig from '../Monitoring/AlertRuleConfig.vue'
 import NotificationConfig from '../Monitoring/NotificationConfig.vue'
 
 const activeTab = ref('basic')

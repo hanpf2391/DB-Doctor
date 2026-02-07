@@ -8,111 +8,122 @@
       </el-button>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="stats-cards">
-      <el-card class="stat-card" shadow="hover">
-        <div class="stat-value">{{ stats.total || 0 }}</div>
-        <div class="stat-label">总告警数</div>
-      </el-card>
-      <el-card class="stat-card critical" shadow="hover">
-        <div class="stat-value">{{ stats.severity_CRITICAL || 0 }}</div>
-        <div class="stat-label">严重告警</div>
-      </el-card>
-      <el-card class="stat-card warning" shadow="hover">
-        <div class="stat-value">{{ stats.severity_WARNING || 0 }}</div>
-        <div class="stat-label">警告告警</div>
-      </el-card>
-      <el-card class="stat-card success" shadow="hover">
-        <div class="stat-value">{{ stats.RESOLVED || 0 }}</div>
-        <div class="stat-label">已解决</div>
-      </el-card>
-    </div>
+    <!-- Tab 切换 -->
+    <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+      <!-- 告警历史 Tab -->
+      <el-tab-pane label="告警历史" name="history">
+        <!-- 统计卡片 -->
+        <div class="stats-cards">
+          <el-card class="stat-card" shadow="hover">
+            <div class="stat-value">{{ stats.total || 0 }}</div>
+            <div class="stat-label">总告警数</div>
+          </el-card>
+          <el-card class="stat-card critical" shadow="hover">
+            <div class="stat-value">{{ stats.severity_CRITICAL || 0 }}</div>
+            <div class="stat-label">严重告警</div>
+          </el-card>
+          <el-card class="stat-card warning" shadow="hover">
+            <div class="stat-value">{{ stats.severity_WARNING || 0 }}</div>
+            <div class="stat-label">警告告警</div>
+          </el-card>
+          <el-card class="stat-card success" shadow="hover">
+            <div class="stat-value">{{ stats.RESOLVED || 0 }}</div>
+            <div class="stat-label">已解决</div>
+          </el-card>
+        </div>
 
-    <!-- 搜索筛选 -->
-    <el-card class="filter-card" shadow="never">
-      <el-form :model="filters" inline>
-        <el-form-item label="严重程度">
-          <el-select v-model="filters.severity" placeholder="全部" clearable>
-            <el-option label="严重" value="CRITICAL" />
-            <el-option label="警告" value="WARNING" />
-            <el-option label="信息" value="INFO" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" placeholder="全部" clearable>
-            <el-option label="触发中" value="FIRING" />
-            <el-option label="已解决" value="RESOLVED" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadAlerts">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        <!-- 搜索筛选 -->
+        <el-card class="filter-card" shadow="never">
+          <el-form :model="filters" inline>
+            <el-form-item label="严重程度">
+              <el-select v-model="filters.severity" placeholder="全部" clearable>
+                <el-option label="严重" value="CRITICAL" />
+                <el-option label="警告" value="WARNING" />
+                <el-option label="信息" value="INFO" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-select v-model="filters.status" placeholder="全部" clearable>
+                <el-option label="触发中" value="FIRING" />
+                <el-option label="已解决" value="RESOLVED" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="loadAlerts">查询</el-button>
+              <el-button @click="resetFilters">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
 
-    <!-- 告警列表 -->
-    <el-card class="table-card" shadow="never">
-      <el-table
-        :data="alerts"
-        v-loading="loading"
-        stripe
-        @row-click="showAlertDetail"
-      >
-        <el-table-column prop="ruleName" label="告警规则" width="200" />
-        <el-table-column prop="severity" label="严重程度" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getSeverityTagType(row.severity)">
-              {{ row.severity }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.status)">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="message" label="告警内容" show-overflow-tooltip />
-        <el-table-column prop="triggeredAt" label="触发时间" width="180">
-          <template #default="{ row }">
-            {{ formatTime(row.triggeredAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              v-if="row.status === 'FIRING'"
-              type="success"
-              size="small"
-              @click.stop="resolveAlert(row)"
-            >
-              标记解决
-            </el-button>
-            <el-button
-              type="primary"
-              size="small"
-              @click.stop="showAlertDetail(row)"
-            >
-              查看详情
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+        <!-- 告警列表 -->
+        <el-card class="table-card" shadow="never">
+          <el-table
+            :data="alerts"
+            v-loading="loading"
+            stripe
+            @row-click="showAlertDetail"
+          >
+            <el-table-column prop="ruleName" label="告警规则" width="200" />
+            <el-table-column prop="severity" label="严重程度" width="120">
+              <template #default="{ row }">
+                <el-tag :type="getSeverityTagType(row.severity)">
+                  {{ row.severity }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="120">
+              <template #default="{ row }">
+                <el-tag :type="getStatusTagType(row.status)">
+                  {{ getStatusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="message" label="告警内容" show-overflow-tooltip />
+            <el-table-column prop="triggeredAt" label="触发时间" width="180">
+              <template #default="{ row }">
+                {{ formatTime(row.triggeredAt) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  v-if="row.status === 'FIRING'"
+                  type="success"
+                  size="small"
+                  @click.stop="resolveAlert(row)"
+                >
+                  标记解决
+                </el-button>
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click.stop="showAlertDetail(row)"
+                >
+                  查看详情
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
 
-      <!-- 分页 -->
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.size"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadAlerts"
-        @current-change="loadAlerts"
-        style="margin-top: 20px; justify-content: center"
-      />
-    </el-card>
+          <!-- 分页 -->
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.size"
+            :total="pagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadAlerts"
+            @current-change="loadAlerts"
+            style="margin-top: 20px; justify-content: center"
+          />
+        </el-card>
+      </el-tab-pane>
+
+      <!-- 规则配置 Tab -->
+      <el-tab-pane label="规则配置" name="rules">
+        <AlertRuleConfig />
+      </el-tab-pane>
+    </el-tabs>
 
     <!-- 告警详情弹窗 -->
     <el-dialog
@@ -155,8 +166,10 @@ import { ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { alertApi } from '@/api/monitoring'
+import AlertRuleConfig from './AlertRuleConfig.vue'
 
 // 响应式数据
+const activeTab = ref('history')
 const loading = ref(false)
 const alerts = ref<any[]>([])
 const stats = ref<any>({})
@@ -279,6 +292,14 @@ const showAlertDetail = (alert: any) => {
 const refreshData = () => {
   loadAlerts()
   loadStats()
+}
+
+// Tab 切换处理
+const handleTabChange = (tabName: string) => {
+  if (tabName === 'history') {
+    loadAlerts()
+    loadStats()
+  }
 }
 
 // 重置筛选
