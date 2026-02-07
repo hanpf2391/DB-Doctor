@@ -78,7 +78,7 @@ import {
 } from '@element-plus/icons-vue'
 import BasicConfig from './BasicConfig.vue'
 import AlertSettings from './AlertSettings.vue'
-import NotificationConfig from '../Monitoring/NotificationConfig.vue'
+import NotificationConfig from '../AlertNotify/NotificationSettings.vue'
 
 const activeTab = ref('basic')
 const activeMonitorTab = ref('alert')
