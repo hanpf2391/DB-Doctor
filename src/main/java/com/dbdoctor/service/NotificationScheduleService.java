@@ -6,6 +6,7 @@ import com.dbdoctor.entity.SystemConfig;
 import com.dbdoctor.repository.SystemConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,7 +31,10 @@ public class NotificationScheduleService {
     private final SystemConfigRepository configRepository;
     private final DbDoctorProperties properties;
     private final NotificationScheduler notificationScheduler;
-    private final DynamicScheduleService dynamicScheduleService;
+
+    // 可选注入，避免循环依赖
+    @Autowired(required = false)
+    private DynamicScheduleService dynamicScheduleService;
 
     // 配置键常量
     private static final String KEY_BATCH_CRON = "notification.batch-cron";
@@ -83,12 +87,15 @@ public class NotificationScheduleService {
         log.info("[定时通知配置服务] ✓ 启用渠道: {}", config.getEnabledChannels());
 
         // 🔥 热更新：重新调度定时任务（立即生效）
-        dynamicScheduleService.scheduleOrUpdateTask(config.getBatchCron());
+        if (dynamicScheduleService != null) {
+            dynamicScheduleService.scheduleOrUpdateTask(config.getBatchCron());
+            log.info("[定时通知配置服务] ✅ 定时任务已重新调度，无需重启应用");
+        } else {
+            log.warn("[定时通知配置服务] ⚠️ DynamicScheduleService 未注入，配置已保存但需要重启应用才能生效");
+        }
 
         // 同步更新配置对象
         properties.getNotify().setBatchCron(config.getBatchCron());
-
-        log.info("[定时通知配置服务] ✅ 定时任务已重新调度，无需重启应用");
 
         return Map.of(
                 "code", "SUCCESS",
