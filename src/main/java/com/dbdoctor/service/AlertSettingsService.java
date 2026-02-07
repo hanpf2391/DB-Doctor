@@ -150,11 +150,12 @@ public class AlertSettingsService {
      */
     private void saveConfig(String key, String value) {
         SystemConfig config = configRepository.findByConfigKey(key)
-                .orElse(new SystemConfig(key));
+                .orElse(new SystemConfig());
 
+        config.setConfigKey(key);
         config.setConfigValue(value);
         config.setConfigGroup("alert");
-        config.setDescription(getConfigDescription(key));
+        config.setConfigDescription(getConfigDescription(key));
         config.setUpdatedBy("admin");
 
         configRepository.save(config);
