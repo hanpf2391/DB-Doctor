@@ -54,8 +54,8 @@
           </div>
         </div>
 
-        <!-- 告警规则配置 -->
-        <AlertRuleConfig v-if="activeMonitorTab === 'alert'" />
+        <!-- 告警设置 -->
+        <AlertSettings v-if="activeMonitorTab === 'alert'" />
 
         <!-- 通知配置 -->
         <NotificationConfig v-else-if="activeMonitorTab === 'notification'" />
@@ -77,7 +77,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import BasicConfig from './BasicConfig.vue'
-import AlertRuleConfig from '../Monitoring/AlertRuleConfig.vue'
+import AlertSettings from './AlertSettings.vue'
 import NotificationConfig from '../Monitoring/NotificationConfig.vue'
 
 const activeTab = ref('basic')
@@ -101,8 +101,8 @@ const menuItems: MenuItem[] = [
   },
   {
     key: 'monitor',
-    title: '监控与通知',
-    description: '配置监控告警和通知方式',
+    title: '告警与通知',
+    description: '配置告警参数和通知方式',
     icon: Bell,
     type: 'warning'
   }
@@ -117,12 +117,12 @@ interface MonitorSubTab {
 const monitorSubTabs: MonitorSubTab[] = [
   {
     key: 'alert',
-    title: '告警规则',
+    title: '告警设置',
     icon: Warning
   },
   {
     key: 'notification',
-    title: '通知配置',
+    title: '通知设置',
     icon: Message
   }
 ]

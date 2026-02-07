@@ -71,31 +71,25 @@ const router = createRouter({
       meta: { title: '实例管理', icon: 'Connection', requiresAuth: true }
     },
 
-    // 监控与通知
+    // 告警与通知
     {
-      path: '/monitoring',
-      name: 'Monitoring',
-      redirect: '/monitoring/system-health',
-      component: () => import('@/views/Monitoring/SystemHealth.vue'),
-      meta: { title: '监控中心', icon: 'TrendCharts', requiresAuth: false },
+      path: '/alert-notify',
+      name: 'AlertNotify',
+      redirect: '/alert-notify/history',
+      component: () => import('@/views/AlertNotify/index.vue'),
+      meta: { title: '告警与通知', icon: 'Bell', requiresAuth: false },
       children: [
         {
-          path: 'system-health',
-          name: 'SystemHealth',
-          component: () => import('@/views/Monitoring/SystemHealth.vue'),
-          meta: { title: '系统健康' }
+          path: 'history',
+          name: 'AlertHistory',
+          component: () => import('@/views/AlertNotify/History.vue'),
+          meta: { title: '告警历史' }
         },
         {
-          path: 'alert-management',
-          name: 'AlertManagement',
-          component: () => import('@/views/Monitoring/AlertManagement.vue'),
-          meta: { title: '告警管理' }
-        },
-        {
-          path: 'notification-config',
-          name: 'NotificationConfig',
-          component: () => import('@/views/Monitoring/NotificationConfig.vue'),
-          meta: { title: '通知配置' }
+          path: 'notification',
+          name: 'NotificationSettings',
+          component: () => import('@/views/AlertNotify/NotificationSettings.vue'),
+          meta: { title: '通知设置' }
         }
       ]
     },

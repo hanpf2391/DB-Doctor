@@ -282,6 +282,5 @@ export const notificationConfigApi = {
 export default {
   systemHealthApi,
   alertApi,
-  alertRuleApi,
   notificationConfigApi
 }
