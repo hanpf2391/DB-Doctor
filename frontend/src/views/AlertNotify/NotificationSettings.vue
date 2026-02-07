@@ -204,13 +204,13 @@
 
           <el-alert
             title="提示"
-            type="warning"
+            type="success"
             :closable="false"
             show-icon
           >
             <template #default>
               <div style="font-size: 12px;">
-                • 修改 Cron 表达式后需要重启应用才能生效
+                • 配置修改后自动热加载，无需重启应用
                 <br>
                 • 定时任务会批量发送所有等待中的通知，请谨慎设置执行频率
                 <br>

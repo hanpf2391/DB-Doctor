@@ -30,6 +30,7 @@ public class NotificationScheduleService {
     private final SystemConfigRepository configRepository;
     private final DbDoctorProperties properties;
     private final NotificationScheduler notificationScheduler;
+    private final DynamicScheduleService dynamicScheduleService;
 
     // 配置键常量
     private static final String KEY_BATCH_CRON = "notification.batch-cron";
@@ -81,12 +82,17 @@ public class NotificationScheduleService {
         log.info("[定时通知配置服务] ✓ Cron 表达式: {}", config.getBatchCron());
         log.info("[定时通知配置服务] ✓ 启用渠道: {}", config.getEnabledChannels());
 
-        // TODO: 热更新 - 重新调度定时任务（需要实现动态调度）
-        log.warn("[定时通知配置服务] ⚠️ 注意：修改 Cron 表达式后需要重启应用才能生效");
+        // 🔥 热更新：重新调度定时任务（立即生效）
+        dynamicScheduleService.scheduleOrUpdateTask(config.getBatchCron());
+
+        // 同步更新配置对象
+        properties.getNotify().setBatchCron(config.getBatchCron());
+
+        log.info("[定时通知配置服务] ✅ 定时任务已重新调度，无需重启应用");
 
         return Map.of(
                 "code", "SUCCESS",
-                "message", "配置已保存",
+                "message", "配置已保存并立即生效",
                 "data", Map.of(
                         "batchCron", config.getBatchCron(),
                         "cronDescription", getCronDescription(config.getBatchCron()),

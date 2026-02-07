@@ -153,6 +153,13 @@ public class DbDoctorProperties {
         private Integer highFrequencyThreshold = 100;
 
         /**
+         * 批量通知 Cron 表达式
+         * 默认值：0 0 * * * ? （每小时）
+         * 支持动态修改，热加载生效
+         */
+        private String batchCron = "0 0 * * * ?";
+
+        /**
          * 邮件通知配置
          */
         @Valid
