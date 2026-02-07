@@ -203,6 +203,11 @@ public class NotificationScheduleService {
         config.setConfigValue(value);
         config.setConfigGroup("notification");
         config.setConfigDescription(getConfigDescription(key));
+        config.setConfigName(getConfigName(key));
+        config.setConfigType(getConfigType(key));
+        config.setIsRequired(true);
+        config.setIsEnabled(true);
+        config.setDisplayOrder(getDisplayOrder(key));
         config.setUpdatedBy("admin");
         config.setUpdatedTime(LocalDateTime.now());
 
@@ -220,6 +225,48 @@ public class NotificationScheduleService {
             case KEY_BATCH_CRON -> "定时批量通知的 Cron 表达式，控制任务执行频率";
             case KEY_ENABLED_CHANNELS -> "参与定时批量通知的通知渠道（逗号分隔）";
             default -> "";
+        };
+    }
+
+    /**
+     * 获取配置名称
+     *
+     * @param key 配置键
+     * @return 配置名称
+     */
+    private String getConfigName(String key) {
+        return switch (key) {
+            case KEY_BATCH_CRON -> "批量通知 Cron 表达式";
+            case KEY_ENABLED_CHANNELS -> "批量通知启用渠道";
+            default -> "";
+        };
+    }
+
+    /**
+     * 获取配置类型
+     *
+     * @param key 配置键
+     * @return 配置类型
+     */
+    private String getConfigType(String key) {
+        return switch (key) {
+            case KEY_BATCH_CRON -> "string";
+            case KEY_ENABLED_CHANNELS -> "string";
+            default -> "string";
+        };
+    }
+
+    /**
+     * 获取显示顺序
+     *
+     * @param key 配置键
+     * @return 显示顺序
+     */
+    private Integer getDisplayOrder(String key) {
+        return switch (key) {
+            case KEY_BATCH_CRON -> 1;
+            case KEY_ENABLED_CHANNELS -> 2;
+            default -> 0;
         };
     }
 

@@ -156,6 +156,11 @@ public class AlertSettingsService {
         config.setConfigValue(value);
         config.setConfigGroup("alert");
         config.setConfigDescription(getConfigDescription(key));
+        config.setConfigName(getConfigName(key));
+        config.setConfigType(getConfigType(key));
+        config.setIsRequired(true);
+        config.setIsEnabled(true);
+        config.setDisplayOrder(getDisplayOrder(key));
         config.setUpdatedBy("admin");
 
         configRepository.save(config);
@@ -174,6 +179,51 @@ public class AlertSettingsService {
             case KEY_COOL_DOWN_HOURS -> "冷却期（小时），同一 SQL 两次通知的最小间隔时间";
             case KEY_DEGRADATION_MULTIPLIER -> "性能恶化倍率，触发二次唤醒通知的性能恶化比例";
             default -> "";
+        };
+    }
+
+    /**
+     * 获取配置名称
+     *
+     * @param key 配置键
+     * @return 配置名称
+     */
+    private String getConfigName(String key) {
+        return switch (key) {
+            case KEY_SEVERITY_THRESHOLD -> "严重程度阈值";
+            case KEY_COOL_DOWN_HOURS -> "冷却期";
+            case KEY_DEGRADATION_MULTIPLIER -> "性能恶化倍率";
+            default -> "";
+        };
+    }
+
+    /**
+     * 获取配置类型
+     *
+     * @param key 配置键
+     * @return 配置类型
+     */
+    private String getConfigType(String key) {
+        return switch (key) {
+            case KEY_SEVERITY_THRESHOLD -> "number";
+            case KEY_COOL_DOWN_HOURS -> "number";
+            case KEY_DEGRADATION_MULTIPLIER -> "number";
+            default -> "string";
+        };
+    }
+
+    /**
+     * 获取显示顺序
+     *
+     * @param key 配置键
+     * @return 显示顺序
+     */
+    private Integer getDisplayOrder(String key) {
+        return switch (key) {
+            case KEY_SEVERITY_THRESHOLD -> 1;
+            case KEY_COOL_DOWN_HOURS -> 2;
+            case KEY_DEGRADATION_MULTIPLIER -> 3;
+            default -> 0;
         };
     }
 }
