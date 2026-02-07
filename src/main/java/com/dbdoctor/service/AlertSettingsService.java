@@ -1,11 +1,11 @@
 package com.dbdoctor.service;
 
+import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.dto.AlertSettingsDTO;
 import com.dbdoctor.entity.SystemConfig;
 import com.dbdoctor.repository.SystemConfigRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AlertSettingsService {
 
     private final SystemConfigRepository configRepository;
-    private final CacheManager cacheManager;
+    private final DbDoctorProperties properties;
 
     // 配置键常量
     private static final String KEY_SEVERITY_THRESHOLD = "alert.severity-threshold";
@@ -70,10 +70,15 @@ public class AlertSettingsService {
         saveConfig(KEY_COOL_DOWN_HOURS, settings.getCoolDownHours().toString());
         saveConfig(KEY_DEGRADATION_MULTIPLIER, settings.getDegradationMultiplier().toString());
 
-        // 清除缓存，触发热更新
-        clearConfigCache();
+        // 🔥 热更新：同步更新 DbDoctorProperties（立即生效）
+        properties.getNotify().setSeverityThreshold(settings.getSeverityThreshold());
+        properties.getNotify().setCoolDownHours(settings.getCoolDownHours());
+        properties.getNotify().setDegradationMultiplier(settings.getDegradationMultiplier());
 
         log.info("[告警设置服务] 告警设置已更新并生效（热更新）");
+        log.info("[告警设置服务] ✓ 严重程度阈值: {} 秒", settings.getSeverityThreshold());
+        log.info("[告警设置服务] ✓ 冷却期: {} 小时", settings.getCoolDownHours());
+        log.info("[告警设置服务] ✓ 性能恶化倍率: {}", settings.getDegradationMultiplier());
     }
 
     /**
@@ -169,16 +174,5 @@ public class AlertSettingsService {
             case KEY_DEGRADATION_MULTIPLIER -> "性能恶化倍率，触发二次唤醒通知的性能恶化比例";
             default -> "";
         };
-    }
-
-    /**
-     * 清除配置缓存
-     */
-    private void clearConfigCache() {
-        var cache = cacheManager.getCache("system_config");
-        if (cache != null) {
-            cache.clear();
-            log.info("[告警设置服务] 已清除配置缓存，配置已重新加载");
-        }
     }
 }
