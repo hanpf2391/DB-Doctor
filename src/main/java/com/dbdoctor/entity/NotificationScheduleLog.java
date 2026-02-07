@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @Entity
-Builder
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "notification_schedule_log", indexes = {
