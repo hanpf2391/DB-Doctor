@@ -28,18 +28,23 @@ public class ScheduleInitListener {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("========================================");
-        log.info("📬 初始化定时批量通知任务");
-        log.info("========================================");
+        try {
+            log.info("========================================");
+            log.info("📬 初始化定时批量通知任务");
+            log.info("========================================");
 
-        // 从配置文件读取 Cron 表达式
-        String cronExpression = properties.getNotify().getBatchCron();
-        log.info("✓ Cron 表达式: {}", cronExpression);
+            // 从配置文件读取 Cron 表达式
+            String cronExpression = properties.getNotify().getBatchCron();
+            log.info("✓ Cron 表达式: {}", cronExpression);
 
-        // 启动动态调度
-        dynamicScheduleService.scheduleOrUpdateTask(cronExpression);
+            // 启动动态调度
+            dynamicScheduleService.scheduleOrUpdateTask(cronExpression);
 
-        log.info("✅ 定时任务初始化完成");
-        log.info("========================================");
+            log.info("✅ 定时任务初始化完成");
+            log.info("========================================");
+        } catch (Exception e) {
+            log.error("❌ 定时任务初始化失败", e);
+            // 不阻止应用启动
+        }
     }
 }
