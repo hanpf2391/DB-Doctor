@@ -20,10 +20,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "notification_schedule_log", indexes = {
-    @Index(name = "idx_trigger_time", columnList = "trigger_time"),
-    @Index(name = "idx_status", columnList = "status")
-})
+@Table(name = "notification_schedule_log")
 public class NotificationScheduleLog {
 
     @Id

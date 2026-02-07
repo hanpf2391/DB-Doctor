@@ -56,13 +56,13 @@ public class NotificationScheduleService {
         String channelsStr = getConfigValue(KEY_ENABLED_CHANNELS, DEFAULT_ENABLED_CHANNELS);
         List<String> enabledChannels = Arrays.asList(channelsStr.split(","));
 
-        return Map.of(
-                "batchCron", batchCron,
-                "enabledChannels", enabledChannels,
-                "cronDescription", getCronDescription(batchCron),
-                "nextExecutionTime", getNextExecutionTime(batchCron),
-                "lastExecutionTime", null // TODO: 从日志表查询
-        );
+        Map<String, Object> result = new HashMap<>();
+        result.put("batchCron", batchCron);
+        result.put("enabledChannels", enabledChannels);
+        result.put("cronDescription", getCronDescription(batchCron));
+        result.put("nextExecutionTime", getNextExecutionTime(batchCron));
+        result.put("lastExecutionTime", null); // TODO: 从日志表查询
+        return result;
     }
 
     /**
@@ -152,7 +152,7 @@ public class NotificationScheduleService {
             return next.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         } catch (Exception e) {
             log.warn("[定时通知配置服务] 计算下次执行时间失败: cron={}", batchCron, e);
-            return null;
+            return "未知";
         }
     }
 
