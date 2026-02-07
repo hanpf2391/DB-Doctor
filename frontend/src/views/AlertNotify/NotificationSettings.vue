@@ -201,23 +201,6 @@
               </el-button>
             </div>
           </el-form-item>
-
-          <el-alert
-            title="提示"
-            type="success"
-            :closable="false"
-            show-icon
-          >
-            <template #default>
-              <div style="font-size: 12px;">
-                • 配置修改后自动热加载，无需重启应用
-                <br>
-                • 定时任务会批量发送所有等待中的通知，请谨慎设置执行频率
-                <br>
-                • 建议在非高峰时段执行定时批量通知
-              </div>
-            </template>
-          </el-alert>
         </el-form>
       </el-card>
     </div>
