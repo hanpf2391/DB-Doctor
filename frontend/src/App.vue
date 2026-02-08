@@ -152,7 +152,8 @@ import {
   User,
   SwitchButton,
   Lock,
-  ArrowDown
+  ArrowDown,
+  Bell
 } from '@element-plus/icons-vue'
 import StartupGuide from '@/components/StartupGuide.vue'
 import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
@@ -320,6 +321,7 @@ const menuItems = [
   { name: '仪表盘', path: '/', icon: Odometer },
   { name: 'AI 监控', path: '/ai-monitor', icon: Monitor },
   { name: '监控中心', path: '/monitoring', icon: TrendCharts },
+  { name: '告警与通知', path: '/alert-notify', icon: Bell },
   { name: '慢查询报表', path: '/reports', icon: DataAnalysis },
   { type: 'group', name: '管理' },
   { name: '实例管理', path: '/instances', icon: Connection },

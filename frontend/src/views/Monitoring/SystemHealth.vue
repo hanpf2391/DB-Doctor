@@ -67,6 +67,7 @@
         <div class="card-content">
           <ul class="details-list">
             <li><span class="label">慢查询 QPS</span><span class="value">{{ metrics.slowQueryQps?.toFixed(2) || '0.00' }}</span></li>
+            <li><span class="label">AI 分析耗时</span><span class="value">{{ metrics.aiAnalysisDuration?.toFixed(2) || '0.00' }}s</span></li>
             <li><span class="label">队列积压</span><span class="value">{{ metrics.queueBacklog || 0 }}</span></li>
           </ul>
         </div>
@@ -172,6 +173,7 @@ const loadData = async () => {
     if (metricsData) {
       metrics.value = {
         slowQueryQps: metricsData.slowQueryMetrics?.qps || 0,
+        aiAnalysisDuration: metricsData.aiAnalysisMetrics?.durationAvg || 0,
         cpuUsage: metricsData.systemResourceMetrics?.cpuUsage || 0,
         jvmMemoryUsage: metricsData.systemResourceMetrics?.memoryUsage || 0,
         queueBacklog: metricsData.queueBacklog || 0
@@ -190,12 +192,9 @@ const refreshData = () => {
   loadData()
 }
 
-// 定时刷新
+// 页面加载（移除自动刷新）
 onMounted(() => {
   loadData()
-  refreshTimer = window.setInterval(() => {
-    loadData()
-  }, 30000) // 每 30 秒刷新
 })
 
 onUnmounted(() => {
@@ -207,9 +206,8 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .system-health {
-  padding: 32px;
+  padding: 24px 32px;
   background-color: #f7f8fa;
-  min-height: calc(100vh - 64px);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   .page-header {

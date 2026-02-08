@@ -108,7 +108,7 @@ public class NotifyService {
      * @return 格式: "DB-Doctor <noreply@dbdoctor.com>"
      */
     private String getFromEmail() {
-        String fromEmail = configService.getString("mail.smtp.from");
+        String fromEmail = configService.getDecryptedValue("mail.smtp.from");
         String displayName = configService.getString("mail.smtp.display-name");
         if (displayName == null || displayName.trim().isEmpty()) {
             displayName = "DB-Doctor";
@@ -136,7 +136,7 @@ public class NotifyService {
      * @return 列表（如果配置为空或不存在，返回空列表）
      */
     private List<String> getListFromConfig(String configKey) {
-        String value = configService.getString(configKey);
+        String value = configService.getDecryptedValue(configKey);
         if (value == null || value.trim().isEmpty()) {
             return Collections.emptyList();
         }

@@ -113,6 +113,12 @@ const router = createRouter({
           name: 'NotificationConfig',
           component: () => import('@/views/Monitoring/NotificationConfig.vue'),
           meta: { title: '通知配置' }
+        },
+        {
+          path: 'notification-history',
+          name: 'NotificationHistory',
+          component: () => import('@/views/Monitoring/NotificationHistory.vue'),
+          meta: { title: '通知历史' }
         }
       ]
     },

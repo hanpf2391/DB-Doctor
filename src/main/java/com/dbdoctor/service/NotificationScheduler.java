@@ -3,6 +3,7 @@ package com.dbdoctor.service;
 import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.common.enums.NotificationStatus;
 import com.dbdoctor.common.enums.SeverityLevel;
+import com.dbdoctor.entity.NotificationScheduleLog;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.NotificationBatchReport;
 import com.dbdoctor.model.QueryStatisticsDTO;
@@ -14,9 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +39,7 @@ public class NotificationScheduler {
     private final SlowQueryTemplateRepository templateRepo;
     private final NotifyService notifyService;
     private final DbDoctorProperties properties;
+    private final NotificationScheduleLogService notificationLogService;
 
     /**
      * 定时批量发送通知
@@ -58,6 +58,14 @@ public class NotificationScheduler {
     public void batchSendNotifications() {
         long startTime = System.currentTimeMillis();
         log.info("📬 开始执行定时批量通知任务");
+
+        // 创建日志记录
+        NotificationScheduleLog scheduleLog = NotificationScheduleLog.builder()
+            .triggerTime(LocalDateTime.now())
+            .windowStart(LocalDateTime.now().minusHours(1))
+            .windowEnd(LocalDateTime.now())
+            .waitingCount(0)
+            .build();
 
         try {
             // 1. 计算时间窗口
@@ -81,6 +89,11 @@ public class NotificationScheduler {
 
             log.info("📋 找到 {} 条等待通知的指纹", waitingTemplates.size());
 
+            // 更新日志：等待数量
+            scheduleLog.setWaitingCount(waitingTemplates.size());
+            scheduleLog.setWindowStart(windowStart);
+            scheduleLog.setWindowEnd(windowEnd);
+
             // 3. 构建批次报告
             NotificationBatchReport report = buildBatchReport(waitingTemplates, windowStart, windowEnd);
 
@@ -103,16 +116,35 @@ public class NotificationScheduler {
                 templateRepo.saveAll(waitingTemplates);
 
                 log.info("✅ 批量通知发送成功，共 {} 条指纹", waitingTemplates.size());
+
+                // 更新日志：成功
+                scheduleLog.setStatus("SUCCESS");
+                scheduleLog.setSentCount(waitingTemplates.size());
             } else {
                 log.error("❌ 批量通知发送失败，保持 WAITING 状态");
+
+                // 更新日志：失败
+                scheduleLog.setStatus("FAILED");
+                scheduleLog.setSentCount(0);
+                scheduleLog.setFailedChannels("[\"EMAIL\"]");
             }
 
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("⏱️ 批量通知任务完成，总耗时={}ms", duration);
+            // 6. 保存日志
+            scheduleLog.setDurationMs(System.currentTimeMillis() - startTime);
+            notificationLogService.save(scheduleLog);
+
+            log.info("⏱️ 批量通知任务完成，总耗时={}ms", scheduleLog.getDurationMs());
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("❌ 批量通知任务执行失败，耗时={}ms", duration, e);
+
+            // 记录失败日志
+            scheduleLog.setStatus("FAILED");
+            scheduleLog.setDurationMs(duration);
+            scheduleLog.setSentCount(0);
+            scheduleLog.setFailedChannels("[\"EMAIL\"]");
+            notificationLogService.save(scheduleLog);
         }
     }
 
@@ -134,9 +166,9 @@ public class NotificationScheduler {
             .filter(t -> t.getSeverityLevel() != null)
             .collect(Collectors.groupingBy(t -> t.getSeverityLevel()));
 
-        List<SlowQueryTemplate> critical = grouped.getOrDefault(SeverityLevel.CRITICAL, List.of());
-        List<SlowQueryTemplate> medium = grouped.getOrDefault(SeverityLevel.WARNING, List.of());
-        List<SlowQueryTemplate> low = grouped.getOrDefault(SeverityLevel.NORMAL, List.of());
+        List<SlowQueryTemplate> critical = new ArrayList<>(grouped.getOrDefault(SeverityLevel.CRITICAL, Collections.emptyList()));
+        List<SlowQueryTemplate> medium = new ArrayList<>(grouped.getOrDefault(SeverityLevel.WARNING, Collections.emptyList()));
+        List<SlowQueryTemplate> low = new ArrayList<>(grouped.getOrDefault(SeverityLevel.NORMAL, Collections.emptyList()));
 
         // 2. 按优先级排序（影响力 = 平均耗时 × 出现次数）
         critical.sort(priorityComparator());
