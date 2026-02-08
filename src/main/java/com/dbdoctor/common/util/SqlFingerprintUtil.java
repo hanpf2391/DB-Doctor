@@ -223,7 +223,7 @@ public class SqlFingerprintUtil {
     }
 
     /**
-     * 清理 SQL（去除多余空格、注释等）
+     * 清理 SQL（去除注释和多余空格）
      *
      * @param rawSql 原始 SQL
      * @return 清理后的 SQL
@@ -235,6 +235,9 @@ public class SqlFingerprintUtil {
 
         // 去除前后空格
         String cleaned = rawSql.trim();
+
+        // 移除 SQL 注释（单行注释 --、多行注释 /* */、MySQL 注释 #）
+        cleaned = removeSqlComments(cleaned);
 
         // 去除多余空格（多个连续空格替换为一个）
         cleaned = cleaned.replaceAll("\\s+", " ");
