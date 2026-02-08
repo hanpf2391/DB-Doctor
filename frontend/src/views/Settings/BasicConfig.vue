@@ -31,7 +31,7 @@
               class="form-select"
             >
               <el-option
-                v-for="instance in databaseInstances"
+                v-for="instance in databaseInstances.filter(i => i.id)"
                 :key="instance.id"
                 :label="getInstanceLabel(instance)"
                 :value="instance.id"
@@ -161,7 +161,7 @@
               class="form-select"
             >
               <el-option
-                v-for="instance in aiServiceInstances"
+                v-for="instance in aiServiceInstances.filter(i => i.id)"
                 :key="instance.id"
                 :label="instance.instanceName"
                 :value="instance.id"
@@ -203,7 +203,7 @@
               class="form-select"
             >
               <el-option
-                v-for="instance in aiServiceInstances"
+                v-for="instance in aiServiceInstances.filter(i => i.id)"
                 :key="instance.id"
                 :label="instance.instanceName"
                 :value="instance.id"
@@ -245,7 +245,7 @@
               class="form-select"
             >
               <el-option
-                v-for="instance in aiServiceInstances"
+                v-for="instance in aiServiceInstances.filter(i => i.id)"
                 :key="instance.id"
                 :label="instance.instanceName"
                 :value="instance.id"
@@ -738,23 +738,40 @@ onMounted(async () => {
 
 /* === 状态徽章 === */
 .status-badge {
-  padding: 3px 10px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-weight: 600;
-  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
 .status-success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-  border: 1px solid var(--color-success-border);
+  background: rgba(16, 185, 129, 0.08);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.status-success::before {
+  background: #10b981;
 }
 
 .status-error {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.status-error::before {
+  background: #ef4444;
 }
 
 /* === 开关容器 === */
@@ -1240,10 +1257,24 @@ onMounted(async () => {
   background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
 }
 
+[data-theme="dark"] .status-success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+[data-theme="dark"] .status-success::before {
+  background: #34d399;
+}
+
 [data-theme="dark"] .status-error {
-  background: rgba(248, 113, 113, 0.15);
+  background: rgba(248, 113, 113, 0.12);
   color: #f87171;
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+[data-theme="dark"] .status-error::before {
+  background: #f87171;
 }
 
 [data-theme="dark"] :deep(.form-select .el-select__wrapper) {

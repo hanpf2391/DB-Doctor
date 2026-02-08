@@ -6,12 +6,6 @@
         <div class="header-left">
           <h1 class="page-title">设置中心</h1>
         </div>
-        <div class="header-right">
-          <div class="status-badge">
-            <span class="status-dot"></span>
-            <span>系统运行正常</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -37,29 +31,11 @@
       <!-- 基础配置 -->
       <BasicConfig v-if="activeTab === 'basic'" />
 
-      <!-- 监控与通知 -->
-      <div v-else-if="activeTab === 'monitor'" class="config-section">
-        <!-- 子 tab 切换 -->
-        <div class="sub-tabs">
-          <div
-            v-for="item in monitorSubTabs"
-            :key="item.key"
-            :class="['sub-tab-item', { active: activeMonitorTab === item.key }]"
-            @click="activeMonitorTab = item.key"
-          >
-            <el-icon class="sub-tab-icon">
-              <component :is="item.icon" />
-            </el-icon>
-            <span class="sub-tab-text">{{ item.title }}</span>
-          </div>
-        </div>
+      <!-- 通知配置 -->
+      <NotificationConfig v-else-if="activeTab === 'notification'" />
 
-        <!-- 告警设置 -->
-        <AlertSettings v-if="activeMonitorTab === 'alert'" />
-
-        <!-- 通知配置 -->
-        <NotificationConfig v-else-if="activeMonitorTab === 'notification'" />
-      </div>
+      <!-- 告警配置 -->
+      <AlertSettings v-else-if="activeTab === 'alert'" />
     </div>
   </div>
 </template>
@@ -67,13 +43,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import {
-  Setting,
   Coin,
-  MagicStick,
-  Bell,
   Message,
-  CircleCheck,
-  ArrowRight,
   Warning
 } from '@element-plus/icons-vue'
 import BasicConfig from './BasicConfig.vue'
@@ -81,49 +52,28 @@ import AlertSettings from './AlertSettings.vue'
 import NotificationConfig from '../AlertNotify/NotificationSettings.vue'
 
 const activeTab = ref('basic')
-const activeMonitorTab = ref('alert')
 
 interface MenuItem {
   key: string
   title: string
-  description: string
   icon: any
-  type: string
 }
 
 const menuItems: MenuItem[] = [
   {
     key: 'basic',
     title: '基础配置',
-    description: '选择使用的数据库实例和 AI 服务实例',
-    icon: Coin,
-    type: 'primary'
-  },
-  {
-    key: 'monitor',
-    title: '告警与通知',
-    description: '配置告警参数和通知方式',
-    icon: Bell,
-    type: 'warning'
-  }
-]
-
-interface MonitorSubTab {
-  key: string
-  title: string
-  icon: any
-}
-
-const monitorSubTabs: MonitorSubTab[] = [
-  {
-    key: 'alert',
-    title: '告警设置',
-    icon: Warning
+    icon: Coin
   },
   {
     key: 'notification',
     title: '通知设置',
     icon: Message
+  },
+  {
+    key: 'alert',
+    title: '告警设置',
+    icon: Warning
   }
 ]
 
@@ -159,43 +109,6 @@ function handleMenuClick(key: string) {
   font-weight: 600;
   color: var(--color-text-primary);
   margin: 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-/* 状态徽章 - 绿色圆点设计 */
-.status-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--color-success-bg);
-  border: 1px solid var(--color-success-border);
-  border-radius: var(--radius-full);
-  font-size: 14px;
-  color: var(--color-success);
-  font-weight: 500;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-success);
-  box-shadow: 0 0 8px var(--color-success);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
 }
 
 /* === 顶部大项切换 === */
@@ -251,59 +164,6 @@ function handleMenuClick(key: string) {
 /* === 内容区域 === */
 .content-area {
   min-height: 400px;
-}
-
-/* === 配置区域 === */
-.config-section {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* === 子 Tab 切换 === */
-.sub-tabs {
-  display: flex;
-  gap: 8px;
-  padding: 4px;
-  background: var(--color-bg-sidebar);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  width: fit-content;
-  margin-bottom: 16px;
-}
-
-.sub-tab-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 24px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all var(--transition-base);
-  color: var(--color-text-secondary);
-  font-weight: 500;
-  font-size: 14px;
-  background: transparent;
-  border: 1px solid transparent;
-}
-
-.sub-tab-item:hover {
-  color: var(--color-text-primary);
-}
-
-.sub-tab-item.active {
-  background: var(--color-bg-page);
-  color: var(--color-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.sub-tab-icon {
-  font-size: 16px;
-}
-
-.sub-tab-text {
-  font-size: 14px;
 }
 
 /* === 配置卡片 === */
@@ -377,17 +237,6 @@ function handleMenuClick(key: string) {
 }
 
 /* === 暗色主题适配 === */
-[data-theme="dark"] .status-badge {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.3);
-  color: #34d399;
-}
-
-[data-theme="dark"] .status-dot {
-  background: #34d399;
-  box-shadow: 0 0 8px #34d399;
-}
-
 [data-theme="dark"] .tabs-container {
   background: #1a1a1a;
   border-color: #262626;
@@ -426,24 +275,5 @@ function handleMenuClick(key: string) {
 
 [data-theme="dark"] .icon-info {
   background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-}
-
-[data-theme="dark"] .sub-tabs {
-  background: #1a1a1a;
-  border-color: #262626;
-}
-
-[data-theme="dark"] .sub-tab-item {
-  color: #a3a3a3;
-}
-
-[data-theme="dark"] .sub-tab-item:hover {
-  color: #d4d4d4;
-}
-
-[data-theme="dark"] .sub-tab-item.active {
-  background: #2a2a2a;
-  color: #818cf8;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 </style>

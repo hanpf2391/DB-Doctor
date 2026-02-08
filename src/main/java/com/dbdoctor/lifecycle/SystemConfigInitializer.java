@@ -224,58 +224,150 @@ public class SystemConfigInitializer implements ApplicationRunner {
 
     /**
      * 初始化通知配置
+     *
+     * <p>配置结构（符合需求报告 v2.0）：</p>
+     * <ul>
+     *   <li>通知渠道开关（notify.*.enabled）</li>
+     *   <li>邮件 SMTP 配置（mail.smtp.*）</li>
+     *   <li>批量报告收件人（mail.batch.*）</li>
+     *   <li>钉钉/飞书/企业微信配置</li>
+     *   <li>定时批量通知配置（notification.*）</li>
+     * </ul>
      */
     private void initNotificationConfigs() {
         log.info("📝 初始化通知配置分组...");
 
-        // 邮件通知
+        // ============ 通知渠道开关 ============
         createConfigIfNotExists(
-            "notification.email.enabled", "notification", "boolean",
+            "notify.email.enabled", "notification", "boolean",
             "false", "false",
-            "启用邮件通知", "是否启用邮件通知",
+            "启用邮件通知", "是否启用邮件批量通知",
             false, false, 1, "boolean", null
         );
 
         createConfigIfNotExists(
-            "notification.email.smtp_host", "notification", "string",
+            "notify.dingtalk.enabled", "notification", "boolean",
+            "false", "false",
+            "启用钉钉通知", "是否启用钉钉批量通知",
+            false, false, 2, "boolean", null
+        );
+
+        createConfigIfNotExists(
+            "notify.feishu.enabled", "notification", "boolean",
+            "false", "false",
+            "启用飞书通知", "是否启用飞书批量通知",
+            false, false, 3, "boolean", null
+        );
+
+        createConfigIfNotExists(
+            "notify.wecom.enabled", "notification", "boolean",
+            "false", "false",
+            "启用企业微信通知", "是否启用企业微信批量通知",
+            false, false, 4, "boolean", null
+        );
+
+        // ============ 邮件 SMTP 配置 ============
+        createConfigIfNotExists(
+            "mail.smtp.host", "notification", "string",
             "smtp.qq.com", "smtp.qq.com",
-            "SMTP 服务器", "邮件发送服务器地址",
-            false, false, 2, "text", "smtp.qq.com"
+            "SMTP 服务器", "邮件发送服务器地址（如 smtp.qq.com）",
+            false, false, 10, "text", "smtp.qq.com"
         );
 
         createConfigIfNotExists(
-            "notification.email.smtp_port", "notification", "number",
+            "mail.smtp.port", "notification", "number",
             "587", "587",
-            "SMTP 端口", "邮件发送服务器端口",
-            false, false, 3, "number", "587"
+            "SMTP 端口", "邮件发送服务器端口（通常为 587 或 465）",
+            false, false, 11, "number", "587"
         );
 
         createConfigIfNotExists(
-            "notification.email.from", "notification", "string",
-            "DB-Doctor <noreply@example.com>", "DB-Doctor <noreply@example.com>",
-            "发件人", "发件箱邮箱地址",
-            false, false, 4, "text", "your-email@example.com"
-        );
-
-        createConfigIfNotExists(
-            "notification.email.username", "notification", "string",
+            "mail.smtp.username", "notification", "string",
             null, "",
-            "邮件用户名", "发件箱邮箱地址",
-            false, false, 5, "text", "your-email@example.com"
+            "SMTP 用户名", "发件箱邮箱地址",
+            false, false, 12, "text", "your-email@qq.com"
         );
 
         createConfigIfNotExists(
-            "notification.email.password", "notification", "password",
+            "mail.smtp.password", "notification", "password",
             null, "",
-            "邮件密码", "发件箱邮箱密码或授权码",
-            false, true, 6, "password", ""
+            "SMTP 密码", "发件箱邮箱密码或授权码（加密存储）",
+            false, true, 13, "password", "请输入授权码"
         );
 
         createConfigIfNotExists(
-            "notification.email.to_list", "notification", "json",
-            "[]", "[]",
-            "收件人列表", "接收通知的邮箱地址列表",
-            false, false, 7, "textarea", "[\"admin@example.com\"]"
+            "mail.smtp.from", "notification", "string",
+            null, "",
+            "发件人邮箱", "发件人邮箱地址（仅邮箱地址，系统会自动添加显示名称）",
+            false, false, 14, "text", "noreply@example.com"
+        );
+
+        createConfigIfNotExists(
+            "mail.smtp.display-name", "notification", "string",
+            "DB-Doctor", "DB-Doctor",
+            "发件人显示名称", "邮件发件人的显示名称（默认：DB-Doctor）",
+            false, false, 15, "text", "DB-Doctor"
+        );
+
+        // ============ 批量报告收件人配置 ============
+        createConfigIfNotExists(
+            "mail.batch.to", "notification", "string",
+            null, "",
+            "批量报告收件人", "批量报告的主要接收人（逗号分隔）",
+            false, true, 20, "textarea", "admin@example.com,team@example.com"
+        );
+
+        createConfigIfNotExists(
+            "mail.batch.cc", "notification", "string",
+            "", "",
+            "批量报告抄送", "批量报告的抄送人（逗号分隔，可选）",
+            false, true, 21, "textarea", "manager@example.com"
+        );
+
+        // ============ 钉钉通知配置 ============
+        createConfigIfNotExists(
+            "dingtalk.webhook", "notification", "string",
+            null, "",
+            "钉钉 Webhook URL", "钉钉机器人 Webhook 地址",
+            false, false, 30, "text", "https://oapi.dingtalk.com/robot/send..."
+        );
+
+        createConfigIfNotExists(
+            "dingtalk.secret", "notification", "password",
+            null, "",
+            "钉钉加签密钥", "钉钉机器人加签密钥（可选）",
+            false, true, 31, "password", "SEC..."
+        );
+
+        // ============ 飞书通知配置 ============
+        createConfigIfNotExists(
+            "feishu.webhook", "notification", "string",
+            null, "",
+            "飞书 Webhook URL", "飞书机器人 Webhook 地址",
+            false, false, 35, "text", "https://open.feishu.cn/open-apis/bot/v2/hook/..."
+        );
+
+        // ============ 企业微信通知配置 ============
+        createConfigIfNotExists(
+            "wecom.webhook", "notification", "string",
+            null, "",
+            "企业微信 Webhook URL", "企业微信机器人 Webhook 地址",
+            false, false, 40, "text", "https://qyapi.weixin.qq.com/cgi-bin/webhook/send..."
+        );
+
+        // ============ 定时批量通知配置 ============
+        createConfigIfNotExists(
+            "notification.batch-cron", "schedule", "string",
+            "0 0 * * * ?", "0 0 * * * ?",
+            "批量通知 Cron 表达式", "定时批量通知的 Cron 表达式（默认：每小时）",
+            false, false, 50, "text", "0 0 * * * ?"
+        );
+
+        createConfigIfNotExists(
+            "notification.enabled-channels", "schedule", "string",
+            "EMAIL", "EMAIL",
+            "批量通知启用渠道", "参与批量通知的渠道（逗号分隔：EMAIL,DINGTALK,FEISHU,WECOM）",
+            false, false, 51, "text", "EMAIL"
         );
 
         log.info("✅ 通知配置初始化完成");

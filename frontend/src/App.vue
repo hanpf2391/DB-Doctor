@@ -116,9 +116,6 @@
         </div>
       </main>
 
-      <!-- 系统监控浮窗 -->
-      <SystemMonitor />
-
       <!-- 首次启动引导 -->
       <StartupGuide />
 
@@ -157,7 +154,6 @@ import {
   Lock,
   ArrowDown
 } from '@element-plus/icons-vue'
-import SystemMonitor from '@/components/SystemMonitor.vue'
 import StartupGuide from '@/components/StartupGuide.vue'
 import ChangePasswordDialog from '@/components/ChangePasswordDialog.vue'
 import FirstLoginPrompt from '@/components/FirstLoginPrompt.vue'

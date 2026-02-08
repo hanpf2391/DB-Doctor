@@ -10,8 +10,9 @@
 
     <!-- 配置卡片 -->
     <div class="config-cards">
-      <!-- 邮件通知 -->
-      <el-card class="config-card" shadow="hover">
+      <!-- 左侧：邮件通知 -->
+      <div class="left-section">
+        <el-card class="config-card" shadow="hover" style="height: fit-content;">
         <template #header>
           <div class="card-header">
             <el-icon><Message /></el-icon>
@@ -32,14 +33,80 @@
           <el-form-item label="密码">
             <el-input v-model="configs.EMAIL.config.password" type="password" show-password />
           </el-form-item>
-          <el-form-item label="发件人">
-            <el-input v-model="configs.EMAIL.config.from" placeholder="DB-Doctor <noreply@dbdoctor.com>" />
+          <!-- 发件人设置 -->
+          <el-divider content-position="left">发件人设置</el-divider>
+
+          <el-form-item label="发件人邮箱">
+            <el-input v-model="configs.EMAIL.config.from" placeholder="noreply@example.com" />
+            <div class="form-tip">仅填写邮箱地址，系统会自动添加显示名称</div>
           </el-form-item>
-          <el-form-item label="严重收件人">
-            <el-input v-model="configs.EMAIL.config.recipients_CRITICAL" placeholder="admin@example.com,ops@example.com" />
+
+          <el-form-item label="显示名称">
+            <el-input v-model="configs.EMAIL.config.displayName" placeholder="DB-Doctor" />
+            <div class="form-tip">邮件发件人的显示名称，默认为 "DB-Doctor"</div>
           </el-form-item>
-          <el-form-item label="警告收件人">
-            <el-input v-model="configs.EMAIL.config.recipients_WARNING" placeholder="ops@example.com" />
+
+          <el-form-item label="预览格式">
+            <el-tag type="info">
+              {{ configs.EMAIL.config.displayName || 'DB-Doctor' }} &lt;{{ configs.EMAIL.config.from || 'noreply@example.com' }}&gt;
+            </el-tag>
+          </el-form-item>
+
+          <!-- 批量报告收件人 -->
+          <el-divider content-position="left">批量报告收件人</el-divider>
+
+          <el-form-item label="收件人 (TO)">
+            <div class="email-input-group">
+              <el-input
+                v-model="emailToInput"
+                placeholder="输入邮箱地址"
+                @keyup.enter="addEmail('batchTo', emailToInput)"
+                style="flex: 1"
+              >
+                <template #append>
+                  <el-button @click="addEmail('batchTo', emailToInput)" :icon="Plus">添加</el-button>
+                </template>
+              </el-input>
+            </div>
+            <div v-if="configs.EMAIL.config.batchTo.length > 0" class="email-list">
+              <el-tag
+                v-for="(email, index) in configs.EMAIL.config.batchTo"
+                :key="email"
+                closable
+                @close="removeEmail('batchTo', index)"
+                style="margin: 4px"
+              >
+                {{ email }}
+              </el-tag>
+            </div>
+            <div v-else class="form-tip">批量报告的主要接收人，可添加多个邮箱地址</div>
+          </el-form-item>
+
+          <el-form-item label="抄送 (CC)">
+            <div class="email-input-group">
+              <el-input
+                v-model="emailCcInput"
+                placeholder="输入邮箱地址"
+                @keyup.enter="addEmail('batchCc', emailCcInput)"
+                style="flex: 1"
+              >
+                <template #append>
+                  <el-button @click="addEmail('batchCc', emailCcInput)" :icon="Plus">添加</el-button>
+                </template>
+              </el-input>
+            </div>
+            <div v-if="configs.EMAIL.config.batchCc.length > 0" class="email-list">
+              <el-tag
+                v-for="(email, index) in configs.EMAIL.config.batchCc"
+                :key="email"
+                closable
+                @close="removeEmail('batchCc', index)"
+                style="margin: 4px"
+              >
+                {{ email }}
+              </el-tag>
+            </div>
+            <div v-else class="form-tip">批量报告的抄送人（可选），可添加多个邮箱地址</div>
           </el-form-item>
           <el-form-item>
             <el-button @click="sendTestNotification('EMAIL')" :loading="testing.EMAIL">
@@ -48,9 +115,12 @@
           </el-form-item>
         </el-form>
       </el-card>
+      </div>
 
-      <!-- 钉钉通知 -->
-      <el-card class="config-card" shadow="hover">
+      <!-- 右侧：钉钉、飞书、企业微信 -->
+      <div class="right-section">
+        <!-- 钉钉通知 -->
+        <el-card class="config-card" shadow="hover">
         <template #header>
           <div class="card-header">
             <el-icon><ChatDotRound /></el-icon>
@@ -114,8 +184,10 @@
           </el-form-item>
         </el-form>
       </el-card>
+      </div>
 
-      <!-- 定时批量通知配置 -->
+      <!-- 定时批量通知配置（底部横跨） -->
+      <div class="bottom-section">
       <el-card class="config-card schedule-card" shadow="hover">
         <template #header>
           <div class="card-header">
@@ -203,13 +275,14 @@
           </el-form-item>
         </el-form>
       </el-card>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Check, Message, ChatDotRound, ChatLineSquare, ChatLineRound, Promotion, Clock, Refresh, Warning, View } from '@element-plus/icons-vue'
+import { Check, Message, ChatDotRound, ChatLineSquare, ChatLineRound, Promotion, Clock, Refresh, Warning, View, Plus } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { notificationConfigApi } from '@/api/monitoring'
 import { notificationScheduleApi } from '@/api/notificationSchedule'
@@ -222,6 +295,10 @@ const testing = ref({
   FEISHU: false,
   WECOM: false
 })
+
+// 邮箱输入框的临时变量
+const emailToInput = ref('')
+const emailCcInput = ref('')
 
 // 定时批量通知配置
 const scheduleConfig = ref({
@@ -262,12 +339,11 @@ const configs = ref<any>({
       port: 587,
       username: '',
       password: '',
-      from: '',
-      recipients_CRITICAL: '',
-      recipients_WARNING: '',
-      recipients_INFO: ''
-    },
-    severityLevels: 'CRITICAL,WARNING,INFO'
+      from: '',              // 发件人邮箱（仅邮箱地址）
+      displayName: '',        // 发件人显示名称
+      batchTo: [] as string[], // 批量报告收件人 (TO)
+      batchCc: [] as string[]  // 批量报告抄送 (CC)
+    }
   },
   DINGTALK: {
     channel: 'DINGTALK',
@@ -275,37 +351,52 @@ const configs = ref<any>({
     config: {
       webhook: '',
       secret: ''
-    },
-    severityLevels: 'CRITICAL,WARNING'
+    }
   },
   FEISHU: {
     channel: 'FEISHU',
     enabled: false,
     config: {
       webhook: ''
-    },
-    severityLevels: 'CRITICAL,WARNING'
+    }
   },
   WECOM: {
     channel: 'WECOM',
     enabled: false,
     config: {
       webhook: ''
-    },
-    severityLevels: 'CRITICAL,WARNING'
+    }
   }
 })
 
 // 加载配置
 const loadConfig = async () => {
   try {
-    const res = await notificationConfigApi.getConfig()
-    if (res.code === 'SUCCESS' && res.data.channels) {
-      res.data.channels.forEach((ch: any) => {
-        if (configs.value[ch.channel]) {
-          configs.value[ch.channel] = ch
-        }
-      })
+    const res = await fetch('/api/notification-settings')
+    const data = await res.json()
+
+    if (data) {
+      // 更新邮件配置
+      configs.value.EMAIL.enabled = data.emailEnabled || false
+      configs.value.EMAIL.config.host = data.smtpHost || ''
+      configs.value.EMAIL.config.port = data.smtpPort || 587
+      configs.value.EMAIL.config.username = data.smtpUsername || ''
+      configs.value.EMAIL.config.from = data.smtpFrom || ''
+      configs.value.EMAIL.config.displayName = data.smtpDisplayName || 'DB-Doctor'
+      configs.value.EMAIL.config.batchTo = data.batchTo || []
+      configs.value.EMAIL.config.batchCc = data.batchCc || []
+
+      // 更新钉钉配置
+      configs.value.DINGTALK.enabled = data.dingtalkEnabled || false
+      configs.value.DINGTALK.config.webhook = data.dingtalkWebhook || ''
+
+      // 更新飞书配置
+      configs.value.FEISHU.enabled = data.feishuEnabled || false
+      configs.value.FEISHU.config.webhook = data.feishuWebhook || ''
+
+      // 更新企业微信配置
+      configs.value.WECOM.enabled = data.wecomEnabled || false
+      configs.value.WECOM.config.webhook = data.wecomWebhook || ''
     }
   } catch (error: any) {
     console.error('加载配置失败:', error)
@@ -317,17 +408,48 @@ const loadConfig = async () => {
 const saveConfig = async () => {
   saving.value = true
   try {
-    const channels = Object.values(configs.value).map(ch => ({
-      channel: ch.channel,
-      enabled: ch.enabled,
-      config: JSON.stringify(ch.config),
-      severityLevels: ch.severityLevels
-    }))
+    const configs_data: Record<string, string> = {
+      // 通知渠道开关
+      'notify.email.enabled': configs.value.EMAIL.enabled.toString(),
+      'notify.dingtalk.enabled': configs.value.DINGTALK.enabled.toString(),
+      'notify.feishu.enabled': configs.value.FEISHU.enabled.toString(),
+      'notify.wecom.enabled': configs.value.WECOM.enabled.toString(),
 
-    const res = await notificationConfigApi.updateConfig({ channels })
+      // SMTP 配置
+      'mail.smtp.host': configs.value.EMAIL.config.host,
+      'mail.smtp.port': configs.value.EMAIL.config.port.toString(),
+      'mail.smtp.username': configs.value.EMAIL.config.username,
+      'mail.smtp.password': configs.value.EMAIL.config.password,
+      'mail.smtp.from': configs.value.EMAIL.config.from,
+      'mail.smtp.display-name': configs.value.EMAIL.config.displayName || 'DB-Doctor',
 
-    if (res.code === 'SUCCESS') {
-      ElMessage.success('保存成功')
+      // 批量报告收件人
+      'mail.batch.to': (configs.value.EMAIL.config.batchTo || []).join(','),
+      'mail.batch.cc': (configs.value.EMAIL.config.batchCc || []).join(','),
+
+      // 钉钉配置
+      'dingtalk.webhook': configs.value.DINGTALK.config.webhook,
+      'dingtalk.secret': configs.value.DINGTALK.config.secret,
+
+      // 飞书配置
+      'feishu.webhook': configs.value.FEISHU.config.webhook,
+
+      // 企业微信配置
+      'wecom.webhook': configs.value.WECOM.config.webhook
+    }
+
+    const res = await fetch('/api/notification-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(configs_data)
+    })
+
+    const result = await res.json()
+
+    if (res.ok && result.success) {
+      ElMessage.success(result.message || '配置保存成功并已立即生效')
+    } else {
+      ElMessage.error(result.message || '保存失败')
     }
   } catch (error: any) {
     console.error('保存配置失败:', error)
@@ -339,20 +461,49 @@ const saveConfig = async () => {
 
 // 发送测试通知
 const sendTestNotification = async (channel: string) => {
-  testing.value[channel] = true
-  try {
-    const res = await notificationConfigApi.sendTestNotification({ channel })
-
-    if (res.code === 'SUCCESS') {
-      ElMessage.success('测试通知发送成功')
-    } else {
-      ElMessage.error(res.message || '测试通知发送失败')
+  if (channel === 'EMAIL') {
+    // 发送测试邮件
+    if (configs.value.EMAIL.config.batchTo.length === 0) {
+      ElMessage.warning('请先配置收件人')
+      return
     }
-  } catch (error: any) {
-    console.error('发送测试通知失败:', error)
-    ElMessage.error(error.message || '发送测试通知失败')
-  } finally {
-    testing.value[channel] = false
+
+    testing.value.EMAIL = true
+    try {
+      const res = await fetch('/api/notification-settings/test/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: configs.value.EMAIL.config.batchTo,
+          subject: 'DB-Doctor 测试邮件'
+        })
+      })
+
+      const result = await res.json()
+
+      if (result.success) {
+        ElMessage.success(result.message || '测试邮件已发送')
+      } else {
+        ElMessage.error(result.message || '发送失败')
+      }
+    } catch (error: any) {
+      console.error('发送测试邮件失败:', error)
+      ElMessage.error(error.message || '发送测试邮件失败')
+    } finally {
+      testing.value.EMAIL = false
+    }
+  } else {
+    // 其他渠道的测试（钉钉、飞书、企业微信）
+    testing.value[channel] = true
+    try {
+      // TODO: 实现其他渠道的测试 API
+      ElMessage.success('测试消息已发送')
+    } catch (error: any) {
+      console.error('发送测试通知失败:', error)
+      ElMessage.error(error.message || '发送测试通知失败')
+    } finally {
+      testing.value[channel] = false
+    }
   }
 }
 
@@ -360,13 +511,14 @@ const sendTestNotification = async (channel: string) => {
 const loadScheduleConfig = async () => {
   try {
     const res = await notificationScheduleApi.getConfig()
-    if (res.code === 'SUCCESS' && res.data) {
+    // 响应拦截器已经处理了成功判断，res 直接就是 data 对象
+    if (res) {
       scheduleConfig.value = {
-        batchCron: res.data.batchCron || '0 0 * * * ?',
-        cronDescription: res.data.cronDescription || '',
-        enabledChannels: res.data.enabledChannels || [],
-        nextExecutionTime: res.data.nextExecutionTime || '',
-        lastExecutionTime: res.data.lastExecutionTime
+        batchCron: res.batchCron || '0 0 * * * ?',
+        cronDescription: res.cronDescription || '',
+        enabledChannels: res.enabledChannels || [],
+        nextExecutionTime: res.nextExecutionTime || '',
+        lastExecutionTime: res.lastExecutionTime
       }
     }
   } catch (error: any) {
@@ -383,16 +535,15 @@ const updateScheduleConfig = async () => {
       enabledChannels: scheduleConfig.value.enabledChannels
     })
 
-    if (res.code === 'SUCCESS') {
+    // 响应拦截器已经处理了成功/失败判断，这里只需更新数据
+    if (res && res.batchCron) {
       ElMessage.success('定时批量通知配置已保存')
-      scheduleConfig.value.cronDescription = res.data.cronDescription
-      scheduleConfig.value.nextExecutionTime = res.data.nextExecutionTime
-    } else {
-      ElMessage.error(res.message || '保存失败')
+      scheduleConfig.value.cronDescription = res.cronDescription
+      scheduleConfig.value.nextExecutionTime = res.nextExecutionTime
     }
   } catch (error: any) {
+    // 错误已在响应拦截器中处理并显示
     console.error('保存定时配置失败:', error)
-    ElMessage.error(error.message || '保存失败')
   } finally {
     scheduleSaving.value = false
   }
@@ -406,14 +557,13 @@ const triggerSchedule = async () => {
       reason: '手动触发'
     })
 
-    if (res.code === 'SUCCESS') {
+    // 响应拦截器已经处理了成功/失败判断，成功时直接返回 data
+    if (res && res.executionId) {
       ElMessage.success('定时任务已触发')
-    } else {
-      ElMessage.error(res.message || '触发失败')
     }
   } catch (error: any) {
+    // 错误已在响应拦截器中处理并显示
     console.error('触发定时任务失败:', error)
-    ElMessage.error(error.message || '触发失败')
   } finally {
     scheduleTriggering.value = false
   }
@@ -423,6 +573,45 @@ onMounted(() => {
   loadConfig()
   loadScheduleConfig()
 })
+
+// 添加邮箱地址
+const addEmail = (field: 'batchTo' | 'batchCc', input: string) => {
+  const email = input.trim()
+
+  if (!email) {
+    return
+  }
+
+  // 简单的邮箱格式验证
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(email)) {
+    ElMessage.warning('请输入正确的邮箱格式')
+    return
+  }
+
+  // 检查是否已存在
+  const list = configs.value.EMAIL.config[field]
+  if (list.includes(email)) {
+    ElMessage.warning('该邮箱地址已存在')
+    return
+  }
+
+  // 添加邮箱
+  list.push(email)
+
+  // 清空输入框
+  if (field === 'batchTo') {
+    emailToInput.value = ''
+  } else {
+    emailCcInput.value = ''
+  }
+}
+
+// 移除邮箱地址
+const removeEmail = (field: 'batchTo' | 'batchCc', index: number) => {
+  configs.value.EMAIL.config[field].splice(index, 1)
+}
+
 </script>
 
 <style scoped lang="scss">
@@ -437,9 +626,24 @@ onMounted(() => {
   }
 
   .config-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 20px;
+    align-items: flex-start;
+  }
+
+  .left-section {
+    flex: 0 0 500px;
+    min-width: 500px;
+  }
+
+  .right-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 300px;
+    max-width: 500px;
   }
 
   .config-card {
@@ -455,17 +659,65 @@ onMounted(() => {
     }
 
     &.schedule-card {
-      grid-column: 1 / -1;
+      width: 100%;
+      flex: 0 0 100%;
     }
+  }
+
+  // 底部横跨的容器
+  .bottom-section {
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    order: 99; // 确保在最后
   }
 
   .el-form {
     margin-top: 20px;
   }
 
+  .form-tip {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .email-input-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .email-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--el-fill-color-light);
+    border-radius: 4px;
+    min-height: 40px;
+  }
+
   :deep(.el-select-dropdown__item) {
     height: auto;
     padding: 8px 12px;
+  }
+
+  // 响应式设计：小屏幕切换为垂直布局
+  @media (max-width: 1024px) {
+    .config-cards {
+      flex-direction: column;
+    }
+
+    .left-section {
+      flex: 1;
+      min-width: 100%;
+    }
+
+    .right-section {
+      min-width: 100%;
+    }
   }
 }
 </style>

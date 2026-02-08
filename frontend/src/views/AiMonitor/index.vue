@@ -182,7 +182,7 @@ const stats = ref<AiMonitorStats>({
 
 // Agent Token 分布饼图
 const agentPieOption = computed(() => {
-  const data = Object.entries(stats.value.agentTokenDistribution).map(([name, value]) => ({
+  const data = Object.entries(stats.value.agentTokenDistribution || {}).map(([name, value]) => ({
     name: AGENT_NAME_MAP[name] || name,
     value
   }))
@@ -219,7 +219,7 @@ const agentPieOption = computed(() => {
 
 // Agent 调用次数饼图
 const agentCallPieOption = computed(() => {
-  const data = Object.entries(stats.value.agentCallDistribution).map(([name, value]) => ({
+  const data = Object.entries(stats.value.agentCallDistribution || {}).map(([name, value]) => ({
     name: AGENT_NAME_MAP[name] || name,
     value
   }))
@@ -256,8 +256,8 @@ const agentCallPieOption = computed(() => {
 
 // 趋势折线图
 const trendLineOption = computed(() => {
-  const hours = Object.keys(stats.value.hourlyCallCount).map(h => `${h}:00`)
-  const counts = Object.values(stats.value.hourlyCallCount)
+  const hours = Object.keys(stats.value.hourlyCallCount || {}).map(h => `${h}:00`)
+  const counts = Object.values(stats.value.hourlyCallCount || {})
 
   return {
     tooltip: {

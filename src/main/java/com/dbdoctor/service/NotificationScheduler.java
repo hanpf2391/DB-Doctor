@@ -129,8 +129,9 @@ public class NotificationScheduler {
             LocalDateTime windowStart,
             LocalDateTime windowEnd) {
 
-        // 1. 按严重程度分组
+        // 1. 按严重程度分组（过滤掉 severityLevel 为 null 的记录）
         Map<SeverityLevel, List<SlowQueryTemplate>> grouped = templates.stream()
+            .filter(t -> t.getSeverityLevel() != null)
             .collect(Collectors.groupingBy(t -> t.getSeverityLevel()));
 
         List<SlowQueryTemplate> critical = grouped.getOrDefault(SeverityLevel.CRITICAL, List.of());

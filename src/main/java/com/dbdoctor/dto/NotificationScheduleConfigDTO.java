@@ -26,12 +26,13 @@ public class NotificationScheduleConfigDTO {
 
     /**
      * Cron 表达式
-     * <p>格式: 秒 分 时 日 月 周</p>
+     * <p>格式: 秒 分 时 日 月 周 [年]</p>
+     * <p>支持 6 段或 7 段格式</p>
      * <p>示例: "0 0 * * * ?" 表示每小时执行一次</p>
      */
     @NotBlank(message = "Cron 表达式不能为空")
-    @Pattern(regexp = "^([0-9]|[*/-])+\\s+([0-9]|[*/-])+\\s+([0-9]|[*/-])+\\s+([0-9]|[*/-])+\\s+([0-9]|[*/-]+|[?])$",
-             message = "Cron 表达式格式不正确，格式: 秒 分 时 日 月 周")
+    @Pattern(regexp = "^[0-9?*/\\-,]+(\\s+[0-9?*/\\-,]+){5,6}$",
+             message = "Cron 表达式格式不正确，格式: 秒 分 时 日 月 周 [年]")
     private String batchCron;
 
     /**

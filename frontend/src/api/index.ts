@@ -35,7 +35,7 @@ request.interceptors.response.use(
 
     // 支持两种成功码：数字 200 和字符串 'SUCCESS'
     if (code === 200 || code === 'SUCCESS') {
-      return response.data
+      return data
     } else {
       ElMessage.error(message || '请求失败')
       return Promise.reject(new Error(message))

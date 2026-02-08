@@ -6,7 +6,6 @@ import com.dbdoctor.model.NotificationBatchReport;
 import com.dbdoctor.model.QueryStatisticsDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +14,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +26,13 @@ import java.util.stream.Collectors;
  * - 发送批量通知（聚合报告）
  * - 发送单条慢查询通知（预留接口）
  *
+ * 配置读取（从 SystemConfig 数据库配置表）：
+ * - notify.email.enabled - 邮件通知开关
+ * - mail.smtp.from - 发件人邮箱（纯邮箱地址）
+ * - mail.smtp.display-name - 发件人显示名称
+ * - mail.batch.to - 批量报告收件人（逗号分隔）
+ * - mail.batch.cc - 批量报告抄送（逗号分隔）
+ *
  * @author DB-Doctor
  * @version 3.0.0
  */
@@ -35,18 +42,7 @@ import java.util.stream.Collectors;
 public class NotifyService {
 
     private final JavaMailSender mailSender;
-
-    @Value("${spring.mail.username:noreply@db-doctor.com}")
-    private String fromEmail;
-
-    @Value("${db-doctor.notify.email.to:admin@example.com}")
-    private List<String> toEmails;
-
-    @Value("${db-doctor.notify.email.cc:}")
-    private List<String> ccEmails;
-
-    @Value("${db-doctor.notify.email.from:DB-Doctor <noreply@example.com>}")
-    private String emailFrom;
+    private final SystemConfigService configService;
 
     /**
      * 发送批量通知（聚合报告）
@@ -56,20 +52,39 @@ public class NotifyService {
      */
     public boolean sendBatchNotification(NotificationBatchReport report) {
         try {
+            // 1. 检查邮件通知是否启用
+            boolean enabled = configService.getBoolean("notify.email.enabled", false);
+            if (!enabled) {
+                log.info("[批量通知] 邮件通知未启用，跳过发送");
+                return true;
+            }
+
             log.info("📧 开始发送批量通知邮件: 指纹数={}", report.getTotalCount());
 
-            // 1. 构建邮件内容
+            // 2. 读取收件人配置
+            List<String> toEmails = getListFromConfig("mail.batch.to");
+            if (toEmails.isEmpty()) {
+                log.warn("[批量通知] 未配置收件人，跳过发送");
+                return false;
+            }
+
+            List<String> ccEmails = getListFromConfig("mail.batch.cc");
+
+            // 3. 构造发件人（包装为 "DB-Doctor <noreply@dbdoctor.com>" 格式）
+            String from = getFromEmail();
+
+            // 4. 构建邮件内容
             String emailSubject = buildEmailSubject(report);
             String emailContent = buildEmailContent(report);
 
-            // 2. 发送邮件
+            // 5. 发送邮件
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            helper.setFrom(fromEmail);
+            helper.setFrom(from);
             helper.setTo(toEmails.toArray(new String[0]));
 
-            if (ccEmails != null && !ccEmails.isEmpty()) {
+            if (!ccEmails.isEmpty()) {
                 helper.setCc(ccEmails.toArray(new String[0]));
             }
 
@@ -78,13 +93,58 @@ public class NotifyService {
 
             mailSender.send(message);
 
-            log.info("✅ 批量通知邮件发送成功: to={}", toEmails);
+            log.info("✅ 批量通知邮件发送成功: to={}, cc={}", toEmails, ccEmails);
             return true;
 
         } catch (Exception e) {
             log.error("❌ 批量通知邮件发送失败", e);
             return false;
         }
+    }
+
+    /**
+     * 获取发件人邮箱（自动包装格式）
+     *
+     * @return 格式: "DB-Doctor <noreply@dbdoctor.com>"
+     */
+    private String getFromEmail() {
+        String fromEmail = configService.getString("mail.smtp.from");
+        String displayName = configService.getString("mail.smtp.display-name");
+        if (displayName == null || displayName.trim().isEmpty()) {
+            displayName = "DB-Doctor";
+        }
+
+        // 兼容旧配置（如果配置值已包含显示名称）
+        if (fromEmail != null && fromEmail.contains("<")) {
+            log.debug("[邮件服务] 发件人配置已包含显示名称，直接使用: {}", fromEmail);
+            return fromEmail;
+        }
+
+        // 自动包装为 "显示名称 <邮箱地址>" 格式
+        if (fromEmail == null || fromEmail.trim().isEmpty()) {
+            log.warn("[邮件服务] 未配置发件人邮箱，使用默认值");
+            fromEmail = "noreply@dbdoctor.com";
+        }
+
+        return String.format("%s <%s>", displayName, fromEmail);
+    }
+
+    /**
+     * 从配置获取列表（逗号分隔）
+     *
+     * @param configKey 配置键
+     * @return 列表（如果配置为空或不存在，返回空列表）
+     */
+    private List<String> getListFromConfig(String configKey) {
+        String value = configService.getString(configKey);
+        if (value == null || value.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     /**
@@ -296,6 +356,10 @@ public class NotifyService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            // 设置发件人（使用配置）
+            String from = getFromEmail();
+            helper.setFrom(from);
 
             // 设置收件人
             helper.setTo(to.toArray(new String[0]));

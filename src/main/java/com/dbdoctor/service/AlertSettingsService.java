@@ -160,6 +160,7 @@ public class AlertSettingsService {
         config.setConfigType(getConfigType(key));
         config.setIsRequired(true);
         config.setIsEnabled(true);
+        config.setIsSensitive(false);  // 告警设置不属于敏感信息
         config.setDisplayOrder(getDisplayOrder(key));
         config.setUpdatedBy("admin");
 

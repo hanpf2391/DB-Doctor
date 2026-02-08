@@ -197,7 +197,7 @@ const loadConfig = async () => {
 const saveConfig = async () => {
   saving.value = true
   try {
-    const channels = Object.values(configs.value).map(ch => ({
+    const channels = Object.values(configs.value || {}).map(ch => ({
       channel: ch.channel,
       enabled: ch.enabled,
       config: JSON.stringify(ch.config),

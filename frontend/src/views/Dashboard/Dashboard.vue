@@ -162,7 +162,7 @@ const trendDate = ref(new Date().toISOString().split('T')[0])
 
 // 趋势图配置
 const trendOption = computed<EChartsOption>(() => {
-  if (!trendData.value) return null
+  if (!trendData.value || !trendData.value.hours) return null
 
   return {
     title: {
@@ -217,7 +217,7 @@ const trendOption = computed<EChartsOption>(() => {
 
 // Top 5 图表配置
 const topOption = computed<EChartsOption>(() => {
-  if (!topData.value || !topData.value.records.length) return null
+  if (!topData.value || !topData.value.records || !topData.value.records.length) return null
 
   const records = topData.value.records
 
@@ -229,12 +229,13 @@ const topOption = computed<EChartsOption>(() => {
       },
       formatter: (params: any) => {
         const data = records[params[0].dataIndex]
+        if (!data) return ''
         return `
           <div style="padding: 8px;">
-            <div style="margin-bottom: 4px; font-weight: bold;">${data.sqlTemplate?.substring(0, 50)}...</div>
-            <div>数据库: ${data.dbName}</div>
-            <div>表名: ${data.tableName}</div>
-            <div>最大耗时: ${formatSeconds(data.maxQueryTime)}</div>
+            <div style="margin-bottom: 4px; font-weight: bold;">${(data.sqlTemplate || '').substring(0, 50)}...</div>
+            <div>数据库: ${data.dbName || '-'}</div>
+            <div>表名: ${data.tableName || '-'}</div>
+            <div>最大耗时: ${formatSeconds(data.maxQueryTime || 0)}</div>
           </div>
         `
       }
@@ -252,16 +253,16 @@ const topOption = computed<EChartsOption>(() => {
     yAxis: {
       type: 'category',
       data: records.map(r => ({
-        value: r.fingerprint?.substring(0, 12) + '...',
+        value: (r.fingerprint || '').substring(0, 12) + '...',
         textStyle: { fontSize: 11 }
       }))
     },
     series: [{
       type: 'bar',
       data: records.map(r => ({
-        value: r.maxQueryTime,
+        value: r.maxQueryTime || 0,
         itemStyle: {
-          color: getSeverityColor(r.severityLevel)
+          color: getSeverityColor(r.severityLevel || '')
         }
       })),
       label: {

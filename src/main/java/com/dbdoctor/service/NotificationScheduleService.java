@@ -207,6 +207,7 @@ public class NotificationScheduleService {
         config.setConfigType(getConfigType(key));
         config.setIsRequired(true);
         config.setIsEnabled(true);
+        config.setIsSensitive(false);  // 通知配置不属于敏感信息
         config.setDisplayOrder(getDisplayOrder(key));
         config.setUpdatedBy("admin");
         config.setUpdatedTime(LocalDateTime.now());

@@ -71,6 +71,9 @@ public class ConfigServiceImpl implements ConfigService {
         config.setConfigKey(key);
         config.setConfigValue(value);
         config.setConfigGroup(extractCategory(key));
+        config.setIsSensitive(isSensitiveConfig(key));  // 判断是否为敏感信息
+        config.setIsRequired(true);
+        config.setIsEnabled(true);
 
         configRepo.save(config);
         log.info("配置已保存: {} = {}", key, maskSensitiveValue(value));
@@ -138,6 +141,18 @@ public class ConfigServiceImpl implements ConfigService {
         } else {
             return "SYSTEM";
         }
+    }
+
+    /**
+     * 判断配置是否为敏感信息
+     */
+    private boolean isSensitiveConfig(String key) {
+        String lowerKey = key.toLowerCase();
+        return lowerKey.contains("password")
+            || lowerKey.contains("secret")
+            || lowerKey.contains("token")
+            || lowerKey.contains("api.key")
+            || lowerKey.contains("credential");
     }
 
     /**
