@@ -41,6 +41,20 @@
 
 ---
 
+## 🎬 功能演示
+
+<p align="center">
+  <img src="demo.gif" width="800" alt="DB-Doctor 功能演示" />
+</p>
+
+**演示内容**：
+1. 📊 自动发现并捕获慢查询
+2. 🤖 AI Agent 智能分析根因
+3. 💡 生成优化建议和执行计划
+4. 📈 AI Token 成本监控
+
+---
+
 ## 💎 核心卖点
 
 ### Why DB-Doctor?

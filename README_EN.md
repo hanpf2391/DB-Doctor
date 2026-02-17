@@ -32,6 +32,22 @@
 
 **DB-Doctor** is a non-intrusive MySQL slow query intelligent diagnosis system based on **multi-AI Agent collaboration**. It monitors MySQL slow query logs in real-time and uses large language models (DeepSeek/Ollama/Qwen/etc.) to analyze root causes and push optimization recommendations.
 
+---
+
+## 🎬 Feature Demo
+
+<p align="center">
+  <img src="demo.gif" width="800" alt="DB-Doctor Feature Demo" />
+</p>
+
+**Demo Content**:
+1. 📊 Automatic detection and capture of slow queries
+2. 🤖 AI Agent intelligent root cause analysis
+3. 💡 Generate optimization recommendations and execution plans
+4. 📈 AI Token cost monitoring
+
+---
+
 ### 🎯 Why Choose DB-Doctor?
 
 | Feature | DB-Doctor | Traditional Solutions |
