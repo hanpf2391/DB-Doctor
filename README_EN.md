@@ -2,6 +2,8 @@
 
 <img src="frontend/public/logo.png" alt="DB-Doctor Logo" width="120" height="120" />
 
+**English | [简体中文](README.md)**
+
 # 🏥 DB-Doctor
 
 ### **MySQL Database "Autopilot" Diagnosis Platform Powered by DeepSeek/LLM**

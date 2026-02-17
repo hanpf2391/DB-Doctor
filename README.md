@@ -2,6 +2,8 @@
 
 <img src="frontend/public/logo.png" alt="DB-Doctor Logo" width="120" height="120" />
 
+**[English](README_EN.md) | 简体中文**
+
 # 🏥 DB-Doctor
 
 ### **基于 DeepSeek/LLM 的 MySQL 数据库"自动驾驶"诊疗平台**
@@ -647,18 +649,10 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 
 ---
 
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
-
-如果这个项目对你有帮助，请给我们一个 Star ⭐
-
----
-
 ## 🌍 国际化
 
 - 🇨🇳 [中文文档](README.md)
-- 🇺🇸 [English Documentation](README_EN.md) （翻译中...）
+- 🇺🇸 [English Documentation](README_EN.md)
 
 ---
 
@@ -667,6 +661,14 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 **Made with ❤️ by hanpf**
 
 **让每一个数据库都拥有智能医生**
+
+---
+
+## ⭐ Star History
+
+如果这个项目对你有帮助，请给我们一个 Star ⭐
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
 
 </div>
 
