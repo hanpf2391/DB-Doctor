@@ -207,7 +207,7 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .system-health {
   padding: 24px 32px;
-  background-color: #f7f8fa;
+  background-color: var(--el-bg-color-page);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   .page-header {
@@ -220,7 +220,7 @@ onUnmounted(() => {
       font-size: 28px;
       font-weight: 700;
       margin: 0;
-      color: #1f2937;
+      color: var(--el-text-color-primary);
     }
   }
 
@@ -231,10 +231,10 @@ onUnmounted(() => {
   }
 
   .card {
-    background: #ffffff;
+    background: var(--el-bg-color);
     border-radius: 12px;
     padding: 24px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--el-border-color-lighter);
     transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     display: flex;
     flex-direction: column;
@@ -242,7 +242,7 @@ onUnmounted(() => {
 
     &:hover {
       transform: translateY(-4px);
-      box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.1), 0 4px 6px -4px rgba(99, 102, 241, 0.1);
+      box-shadow: var(--el-box-shadow-light);
     }
 
     @media (min-width: 768px) {
@@ -280,29 +280,29 @@ onUnmounted(() => {
   }
 
   .card-blue .card-icon {
-    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+    background: var(--el-color-primary);
   }
 
   .card-purple .card-icon {
-    background: linear-gradient(135deg, #a78bfa, #7c3aed);
+    background: var(--el-color-primary-light-3);
   }
 
   .card-orange .card-icon {
-    background: linear-gradient(135deg, #fbbf24, #f97316);
+    background: var(--el-color-warning);
   }
 
   .card-green .card-icon {
-    background: linear-gradient(135deg, #4ade80, #16a34a);
+    background: var(--el-color-success);
   }
 
   .card-red .card-icon {
-    background: linear-gradient(135deg, #f87171, #ef4444);
+    background: var(--el-color-danger);
   }
 
   .card-title {
     font-size: 16px;
     font-weight: 600;
-    color: #1f2937;
+    color: var(--el-text-color-primary);
     margin: 0;
   }
 
@@ -326,7 +326,7 @@ onUnmounted(() => {
     }
 
     .label {
-      color: #6b7280;
+      color: var(--el-text-color-regular);
       display: flex;
       align-items: center;
       gap: 6px;
@@ -334,7 +334,7 @@ onUnmounted(() => {
 
     .value {
       font-weight: 600;
-      background-color: #f7f8fa;
+      background-color: var(--el-fill-color-light);
       padding: 2px 8px;
       border-radius: 6px;
       font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
@@ -342,34 +342,34 @@ onUnmounted(() => {
     }
 
     .value-healthy {
-      color: #10b981;
-      background-color: #ecfdf5;
+      color: var(--el-color-success);
+      background-color: var(--el-color-success-light-9);
     }
 
     .value-warning {
-      color: #f97316;
-      background-color: #fffbeb;
+      color: var(--el-color-warning);
+      background-color: var(--el-color-warning-light-9);
     }
   }
 
   .metric-large {
     font-size: 32px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--el-text-color-primary);
     display: flex;
     align-items: baseline;
 
     .unit {
       font-size: 18px;
       font-weight: 500;
-      color: #6b7280;
+      color: var(--el-text-color-regular);
       margin-left: 6px;
     }
   }
 
   .metric-description {
     font-size: 14px;
-    color: #6b7280;
+    color: var(--el-text-color-regular);
     margin-top: 8px;
     margin-bottom: 0;
   }
@@ -387,12 +387,12 @@ onUnmounted(() => {
     flex: 1;
 
     &:not(:first-child) {
-      border-left: 1px solid #e5e7eb;
+      border-left: 1px solid var(--el-border-color-lighter);
       padding-left: 24px;
 
       @media (max-width: 768px) {
         border-left: none;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--el-border-color-lighter);
         padding-left: 0;
         padding-top: 24px;
       }
@@ -403,7 +403,7 @@ onUnmounted(() => {
     font-size: 14px;
     font-weight: 600;
     margin: 0 0 12px 0;
-    color: #1f2937;
+    color: var(--el-text-color-primary);
     text-transform: capitalize;
   }
 }

@@ -18,36 +18,36 @@ import static org.junit.jupiter.api.Assertions.*;
 class SqlFingerprintUtilTest {
 
     /**
-     * 测试 cleanSql() 方法 - 单行注释（--）
+     * 测试 cleanSql() 方法 - 单行注释(--)
      */
     @Test
     void testCleanSqlWithSingleLineComment() {
         String sql = "-- 这是注释\nSELECT * FROM users WHERE id = 1";
         String expected = "SELECT * FROM users WHERE id = 1";
         String result = SqlFingerprintUtil.cleanSql(sql);
-        assertEquals(expected, result, "应该移除单行注释（--）");
+        assertEquals(expected, result, "应该移除单行注释(--)");
     }
 
     /**
-     * 测试 cleanSql() 方法 - 多行注释（/* */）
+     * 测试 cleanSql() 方法 - 多行注释(/* */)
      */
     @Test
     void testCleanSqlWithMultiLineComment() {
         String sql = "/* 这是多行注释 */SELECT * FROM users WHERE id = 1";
         String expected = "SELECT * FROM users WHERE id = 1";
         String result = SqlFingerprintUtil.cleanSql(sql);
-        assertEquals(expected, result, "应该移除多行注释（/* */）");
+        assertEquals(expected, result, "应该移除多行注释(/* */)");
     }
 
     /**
-     * 测试 cleanSql() 方法 - MySQL 注释（#）
+     * 测试 cleanSql() 方法 - MySQL 注释(#)
      */
     @Test
     void testCleanSqlWithMySQLComment() {
         String sql = "# 这是 MySQL 注释\nSELECT * FROM users WHERE id = 1";
         String expected = "SELECT * FROM users WHERE id = 1";
         String result = SqlFingerprintUtil.cleanSql(sql);
-        assertEquals(expected, result, "应该移除 MySQL 注释（#）");
+        assertEquals(expected, result, "应该移除 MySQL 注释(#)");
     }
 
     /**
@@ -66,7 +66,7 @@ class SqlFingerprintUtilTest {
     }
 
     /**
-     * 测试 cleanSql() 方法 - 用户真实场景（带行内注释）
+     * 测试 cleanSql() 方法 - 用户真实场景(带行内注释)
      */
     @Test
     void testCleanSqlWithInlineComments() {
@@ -156,7 +156,7 @@ class SqlFingerprintUtilTest {
     }
 
     /**
-     * 测试 cleanSql() 方法 - 字符串中的注释符号（不应被移除）
+     * 测试 cleanSql() 方法 - 字符串中的注释符号(不应被移除)
      */
     @Test
     void testCleanSqlPreservesCommentsInStrings() {
@@ -168,7 +168,7 @@ class SqlFingerprintUtilTest {
     }
 
     /**
-     * 测试 cleanSql() 方法 - 嵌套注释（当前不支持）
+     * 测试 cleanSql() 方法 - 嵌套注释(当前不支持)
      */
     @Test
     void testCleanSqlWithNestedComments() {
@@ -213,7 +213,7 @@ class SqlFingerprintUtilTest {
         String template1 = SqlFingerprintUtil.extractTemplate(sql1);
         String template2 = SqlFingerprintUtil.extractTemplate(sql2);
 
-        // 模板应该参数化（数字和字符串替换为 ?）
+        // 模板应该参数化(数字和字符串替换为 ?)
         assertTrue(template1.contains("?"), "模板应该包含参数占位符");
         assertTrue(template2.contains("?"), "带注释的 SQL 模板应该包含参数占位符");
 

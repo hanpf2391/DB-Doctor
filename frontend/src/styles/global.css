@@ -2,6 +2,56 @@
    DB-Doctor 全局样式系统
    ============================================ */
 
+/* === Element Plus 主题变量（浅色模式）=== */
+:root {
+  /* Element Plus 颜色变量 - 浅色模式 */
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f2f3f5;
+  --el-bg-color-overlay: #ffffff;
+  --el-text-color-primary: #303133;
+  --el-text-color-regular: #606266;
+  --el-text-color-secondary: #909399;
+  --el-text-color-placeholder: #a8abb2;
+  --el-border-color: #dcdfe6;
+  --el-border-color-light: #e4e7ed;
+  --el-border-color-lighter: #ebeef5;
+  --el-border-color-extra-light: #f2f6fc;
+  --el-border-color-dark: #d4d7de;
+  --el-border-color-darker: #cdd0d6;
+  --el-fill-color: #f0f2f5;
+  --el-fill-color-light: #f5f7fa;
+  --el-fill-color-lighter: #fafafa;
+  --el-fill-color-extra-light: #fafafb;
+  --el-fill-color-dark: #ebedf0;
+  --el-fill-color-darker: #e6e8eb;
+  --el-box-shadow-light: 0 0 12px rgba(0, 0, 0, 0.12);
+}
+
+/* === Element Plus 主题变量（深色模式）=== */
+[data-theme="dark"] {
+  /* Element Plus 颜色变量 - 深色模式 */
+  --el-bg-color: #141414;
+  --el-bg-color-page: #0a0a0a;
+  --el-bg-color-overlay: #1d1e1f;
+  --el-text-color-primary: #e5eaf3;
+  --el-text-color-regular: #cfd3dc;
+  --el-text-color-secondary: #a3a6ad;
+  --el-text-color-placeholder: #8d9095;
+  --el-border-color: #4c4d4f;
+  --el-border-color-light: #414243;
+  --el-border-color-lighter: #363637;
+  --el-border-color-extra-light: #2b2b2c;
+  --el-border-color-dark: #58585b;
+  --el-border-color-darker: #636466;
+  --el-fill-color: #2b2b2c;
+  --el-fill-color-light: #262727;
+  --el-fill-color-lighter: #212223;
+  --el-fill-color-extra-light: #191a1a;
+  --el-fill-color-dark: #2c2c2c;
+  --el-fill-color-darker: #343434;
+  --el-box-shadow-light: 0 0 12px rgba(0, 0, 0, 0.72);
+}
+
 /* === Design Tokens === */
 :root {
   /* 品牌色 */
@@ -78,8 +128,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: var(--font-size-base);
   line-height: 1.6;
-  color: var(--color-gray-700);
-  background: var(--color-gray-50);
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -330,18 +380,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-gray-100);
+  background: var(--el-fill-color-lighter);
   border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-gray-300);
+  background: var(--el-border-color);
   border-radius: var(--radius-sm);
   transition: background var(--transition-base);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-gray-400);
+  background: var(--el-border-color-darker);
 }
 
 /* === Element Plus 样式覆盖 === */
@@ -357,7 +407,7 @@ body {
 }
 
 .el-card__header {
-  border-bottom: 1px solid var(--color-gray-100);
+  border-bottom: 1px solid var(--el-border-color-lighter);
   padding: var(--spacing-lg);
   font-weight: 600;
   font-size: var(--font-size-lg);
@@ -450,7 +500,7 @@ body {
 }
 
 .el-table__row:hover {
-  background: var(--color-gray-50) !important;
+  background: var(--el-fill-color-light) !important;
 }
 
 /* 对话框美化 */
@@ -469,6 +519,31 @@ body {
   color: white;
   font-weight: 600;
   font-size: var(--font-size-xl);
+}
+
+/* 无边框对话框特殊样式 */
+.el-dialog.no-border-dialog {
+  border: none !important;
+  box-shadow: none !important;
+  --el-dialog-box-shadow: none !important;
+  border-radius: 8px;
+}
+
+.el-dialog.no-border-dialog .el-dialog__header {
+  background: transparent !important;
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+}
+
+.el-dialog.no-border-dialog .el-dialog__title {
+  color: var(--el-text-color-primary) !important;
+  font-weight: 600;
+}
+
+.el-dialog.no-border-dialog .el-dialog__body {
+  background: var(--el-bg-color) !important;
+  border: none !important;
+  padding: 20px !important;
 }
 
 /* 消息提示美化 */

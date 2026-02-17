@@ -7,8 +7,10 @@ import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.model.QueryStatisticsDTO;
 import com.dbdoctor.model.SlowQueryLog;
 import com.dbdoctor.model.AnalysisContext;
+import com.dbdoctor.entity.NotificationQueue;
 import com.dbdoctor.entity.SlowQuerySample;
 import com.dbdoctor.entity.SlowQueryTemplate;
+import com.dbdoctor.repository.NotificationQueueRepository;
 import com.dbdoctor.repository.SlowQuerySampleRepository;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,7 @@ public class AnalysisService {
     private final NotifyService notifyService;
     private final SlowQueryTemplateRepository templateRepo;
     private final SlowQuerySampleRepository sampleRepo;
+    private final NotificationQueueRepository notificationQueueRepo;
     private final DbDoctorProperties properties;
     private final DBAgent dbAgent;  // 主治医生（单 Agent 模式，保留用于兼容）
     private final MultiAgentCoordinator multiAgentCoordinator;  // 多 Agent 协调器
@@ -156,12 +159,18 @@ public class AnalysisService {
         // 2. SQL 脱敏处理（用于 Sample 表存储）
         String maskedSql = SqlMaskingUtil.maskSensitiveData(cleanedSql);
 
-        // 3. 创建 Template 记录（初始化统计字段）
+        // 3. 计算初始严重程度（基于查询耗时）
+        double severityThreshold = properties.getNotify().getSeverityThreshold();
+        com.dbdoctor.common.enums.SeverityLevel initialSeverity =
+                com.dbdoctor.common.enums.SeverityLevel.fromQueryTime(slowLog.getQueryTime(), severityThreshold);
+
+        // 4. 创建 Template 记录（初始化统计字段）
         SlowQueryTemplate template = SlowQueryTemplate.builder()
                 .sqlFingerprint(fingerprint)
                 .sqlTemplate(sqlTemplate)  // ← 存储参数化后的模板（全是 ?）
                 .dbName(dbName)
                 .tableName(tableName)
+                .severityLevel(initialSeverity)  // ← 设置初始严重程度
                 .firstSeenTime(LocalDateTime.now())
                 .lastSeenTime(LocalDateTime.now())
                 .status(SlowQueryTemplate.AnalysisStatus.PENDING)
@@ -228,6 +237,9 @@ public class AnalysisService {
             // 3. 保存报告到 Template
             template.setAiAnalysisReport(aiReport);
             template.setStatus(SlowQueryTemplate.AnalysisStatus.SUCCESS);
+
+            // 3.5 【新增】插入通知队列（事件驱动，解决状态覆盖问题）
+            insertNotificationQueue(template);
 
             // 4. 判断是否需要通知，标记通知状态
             QueryStatisticsDTO stats = buildStatisticsFromTemplate(template);
@@ -478,6 +490,19 @@ public class AnalysisService {
                 template.setMaxRowsExamined(newRowsExamined);
             }
         }
+
+        // 6. 更新严重程度（如果为 NULL 或根据最新的平均耗时重新计算）
+        if (template.getSeverityLevel() == null) {
+            double severityThreshold = properties.getNotify().getSeverityThreshold();
+            Double avgQueryTime = template.getAvgQueryTime();
+            if (avgQueryTime != null) {
+                com.dbdoctor.common.enums.SeverityLevel newSeverity =
+                        com.dbdoctor.common.enums.SeverityLevel.fromQueryTime(avgQueryTime, severityThreshold);
+                template.setSeverityLevel(newSeverity);
+                log.debug("🔄 更新 severityLevel: fingerprint={}, severity={}, avgQueryTime={}",
+                        template.getSqlFingerprint(), newSeverity, avgQueryTime);
+            }
+        }
     }
 
     /**
@@ -503,5 +528,47 @@ public class AnalysisService {
                 .avgRowsExamined(template.getAvgRowsExamined())
                 .maxRowsExamined(template.getMaxRowsExamined() != null ? template.getMaxRowsExamined() : 0L)
                 .build();
+    }
+
+    /**
+     * 插入通知队列（事件驱动，解决状态覆盖问题）
+     *
+     * 核心逻辑：
+     * - 每次分析完成后，将结果插入通知队列表
+     * - 保留完整的分析时间线，支持按时间聚合展示
+     * - 发送完成后由定时任务删除队列记录
+     *
+     * @param template 模板记录
+     */
+    private void insertNotificationQueue(SlowQueryTemplate template) {
+        try {
+            // 获取严重程度，如果为 NULL 则设置默认值
+            com.dbdoctor.common.enums.SeverityLevel severity = template.getSeverityLevel();
+            if (severity == null) {
+                severity = com.dbdoctor.common.enums.SeverityLevel.NORMAL; // 默认为 NORMAL
+                log.debug("⚠️ severityLevel 为空，使用默认值: NORMAL");
+            }
+
+            NotificationQueue queue = NotificationQueue.builder()
+                    .sqlFingerprint(template.getSqlFingerprint())
+                    .dbName(template.getDbName())
+                    .tableName(template.getTableName())
+                    .sqlTemplate(template.getSqlTemplate())
+                    .severity(severity)
+                    .aiReport(template.getAiAnalysisReport())
+                    .queryTime(template.getAvgQueryTime())
+                    .lockTime(template.getAvgLockTime())
+                    .rowsExamined(template.getMaxRowsExamined())
+                    .analyzedTime(LocalDateTime.now())
+                    .status(NotificationQueue.NotificationStatus.PENDING)
+                    .build();
+
+            notificationQueueRepo.save(queue);
+            log.debug("📬 插入通知队列: fingerprint={}, severity={}",
+                    template.getSqlFingerprint(), severity);
+        } catch (Exception e) {
+            log.error("插入通知队列失败: fingerprint={}", template.getSqlFingerprint(), e);
+            // 不抛出异常，避免影响主流程
+        }
     }
 }

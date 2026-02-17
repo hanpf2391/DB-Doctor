@@ -174,16 +174,19 @@ public class DbDoctorProperties {
 
     /**
      * 邮件通知配置
+     *
+     * <p>注意：邮箱配置已迁移到数据库（system_config 表），通过前端 UI 配置</p>
+     * <p>此类保留仅为兼容性，实际不再使用配置文件中的邮箱设置</p>
+     *
+     * @deprecated 请使用数据库配置代替配置文件
      */
+    @Deprecated(since = "3.2.0", forRemoval = false)
     @Data
     public static class EmailConfig {
         private Boolean enabled = true;
-
-        @Email(message = "发件人邮箱格式不正确")
         private String from;
-
-        private java.util.List<@Email(message = "收件人邮箱格式不正确") String> to;
-        private java.util.List<@Email(message = "抄送人邮箱格式不正确") String> cc;
+        private java.util.List<String> to;
+        private java.util.List<String> cc;
     }
 
     /**

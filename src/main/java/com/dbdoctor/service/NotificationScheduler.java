@@ -3,10 +3,14 @@ package com.dbdoctor.service;
 import com.dbdoctor.config.DbDoctorProperties;
 import com.dbdoctor.common.enums.NotificationStatus;
 import com.dbdoctor.common.enums.SeverityLevel;
+import com.dbdoctor.entity.NotificationHistory;
 import com.dbdoctor.entity.NotificationScheduleLog;
+import com.dbdoctor.entity.NotificationQueue;
 import com.dbdoctor.entity.SlowQueryTemplate;
 import com.dbdoctor.model.NotificationBatchReport;
 import com.dbdoctor.model.QueryStatisticsDTO;
+import com.dbdoctor.repository.NotificationHistoryRepository;
+import com.dbdoctor.repository.NotificationQueueRepository;
 import com.dbdoctor.repository.SlowQueryTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,21 +41,23 @@ import java.util.stream.Collectors;
 public class NotificationScheduler {
 
     private final SlowQueryTemplateRepository templateRepo;
+    private final NotificationQueueRepository notificationQueueRepo;
+    private final NotificationHistoryRepository notificationHistoryRepo;
     private final NotifyService notifyService;
     private final DbDoctorProperties properties;
     private final NotificationScheduleLogService notificationLogService;
 
     /**
-     * 定时批量发送通知
+     * 定时批量发送通知（V3.0.0 - 从通知队列读取，支持时间线聚合）
      *
      * Cron 表达式：默认每小时执行一次（可通过配置文件修改）
      * 功能：
      * 1. 计算时间窗口（默认过去 60 分钟）
-     * 2. 查询时间窗口内 WAITING 状态的记录
-     * 3. 按严重程度分组统计
+     * 2. 从通知队列查询 PENDING 状态的记录（事件驱动，解决状态覆盖问题）
+     * 3. 按批次 + 指纹聚合（支持时间线展示）
      * 4. 构建批次报告
      * 5. 批量发送聚合邮件
-     * 6. 更新状态为 SENT
+     * 6. 删除已发送的队列记录
      */
     @Scheduled(cron = "${db-doctor.notify.batch-cron:0 0 * * * ?}")
     @Transactional
@@ -74,28 +80,43 @@ public class NotificationScheduler {
 
             log.info("⏰ 时间窗口：{} ~ {}", windowStart, windowEnd);
 
-            // 2. 查询时间窗口内等待通知的记录（按 lastSeenTime 过滤）
-            List<SlowQueryTemplate> waitingTemplates = templateRepo
-                .findByNotificationStatusAndLastSeenTimeBetween(
-                    NotificationStatus.WAITING,
+            // 2. 【修改】从通知队列查询待发送的记录（事件驱动）
+            List<NotificationQueue> pendingQueues = notificationQueueRepo
+                .findByStatusAndAnalyzedTimeBetween(
+                    NotificationQueue.NotificationStatus.PENDING,
                     windowStart,
                     windowEnd
                 );
 
-            if (waitingTemplates.isEmpty()) {
-                log.info("✅ 本时间窗口内没有等待通知的记录");
+            if (pendingQueues.isEmpty()) {
+                log.info("✅ 本时间窗口内没有待发送的通知记录");
                 return;
             }
 
-            log.info("📋 找到 {} 条等待通知的指纹", waitingTemplates.size());
+            log.info("📋 找到 {} 条待发送的通知记录", pendingQueues.size());
 
             // 更新日志：等待数量
-            scheduleLog.setWaitingCount(waitingTemplates.size());
+            scheduleLog.setWaitingCount(pendingQueues.size());
             scheduleLog.setWindowStart(windowStart);
             scheduleLog.setWindowEnd(windowEnd);
 
-            // 3. 构建批次报告
-            NotificationBatchReport report = buildBatchReport(waitingTemplates, windowStart, windowEnd);
+            // 3. 【新增】生成批次 ID（UUID，用于标识一次通知）
+            String batchId = UUID.randomUUID().toString();
+            log.debug("🆔 生成批次 ID: {}", batchId);
+
+            // 4. 【新增】按 SQL 指纹聚合（支持时间线展示）
+            Map<String, List<NotificationQueue>> groupedByFingerprint = pendingQueues.stream()
+                .collect(Collectors.groupingBy(NotificationQueue::getSqlFingerprint));
+
+            log.info("📊 聚合结果 - 去重后共 {} 个指纹", groupedByFingerprint.size());
+
+            // 5. 【修改】构建批次报告（基于通知队列）
+            NotificationBatchReport report = buildBatchReportFromQueue(
+                pendingQueues,
+                groupedByFingerprint,
+                windowStart,
+                windowEnd
+            );
 
             log.info("📊 批次统计 - 总计:{} | 🔥严重:{} | ⚠️中等:{} | 💡轻微:{}",
                 report.getTotalCount(),
@@ -104,24 +125,58 @@ public class NotificationScheduler {
                 report.getLowCount()
             );
 
-            // 4. 发送批量通知
-            boolean sendSuccess = notifyService.sendBatchNotification(report);
+            // 6. 发送批量通知（支持立即重试，最多3次）
+            boolean sendSuccess = false;
+            final int MAX_RETRY_TIMES = 3; // 写死，不需要配置
 
-            // 5. 更新所有记录的状态
+            for (int retryCount = 0; retryCount < MAX_RETRY_TIMES; retryCount++) {
+                sendSuccess = notifyService.sendBatchNotification(report);
+
+                if (sendSuccess) {
+                    log.info("✅ 批量通知发送成功（第 {} 次尝试）", retryCount + 1);
+                    break; // 发送成功，退出重试循环
+                }
+
+                // 发送失败
+                log.warn("⚠️ 第 {} 次发送失败", retryCount + 1);
+
+                // 如果还有重试机会，等待5秒后重试
+                if (retryCount < MAX_RETRY_TIMES - 1) {
+                    log.info("🔄 5秒后将进行第 {} 次重试...", retryCount + 2);
+                    try {
+                        Thread.sleep(5000); // 等待5秒后重试
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("❌ 重试等待被中断");
+                        break;
+                    }
+                }
+            }
+
+            // 7. 根据发送结果处理队列记录
             if (sendSuccess) {
-                waitingTemplates.forEach(template -> {
-                    template.setNotificationStatus(NotificationStatus.SENT);
-                    template.setLastNotifiedTime(LocalDateTime.now());
-                });
-                templateRepo.saveAll(waitingTemplates);
+                // 成功：保存到历史表
+                saveNotificationHistory(pendingQueues, batchId, LocalDateTime.now());
+                log.info("✅ 已保存 {} 条记录到通知历史表", pendingQueues.size());
 
-                log.info("✅ 批量通知发送成功，共 {} 条指纹", waitingTemplates.size());
+                // 删除队列记录（队列模式）
+                notificationQueueRepo.deleteAll(pendingQueues);
+                log.info("✅ 批量通知发送成功，已删除 {} 条队列记录", pendingQueues.size());
+
+                // 同时更新 Template 表的状态（兼容现有逻辑）
+                updateTemplateStatusFromQueue(pendingQueues);
 
                 // 更新日志：成功
                 scheduleLog.setStatus("SUCCESS");
-                scheduleLog.setSentCount(waitingTemplates.size());
+                scheduleLog.setSentCount(pendingQueues.size());
             } else {
-                log.error("❌ 批量通知发送失败，保持 WAITING 状态");
+                // 失败：3次重试均失败，保存失败历史后删除队列记录
+                saveFailedNotificationHistory(pendingQueues, batchId);
+                log.error("❌ 已保存失败记录到通知历史表");
+
+                notificationQueueRepo.deleteAll(pendingQueues);
+                log.error("❌ 批量通知发送失败，已重试 {} 次，删除 {} 条队列记录",
+                    MAX_RETRY_TIMES, pendingQueues.size());
 
                 // 更新日志：失败
                 scheduleLog.setStatus("FAILED");
@@ -129,7 +184,7 @@ public class NotificationScheduler {
                 scheduleLog.setFailedChannels("[\"EMAIL\"]");
             }
 
-            // 6. 保存日志
+            // 8. 保存日志
             scheduleLog.setDurationMs(System.currentTimeMillis() - startTime);
             notificationLogService.save(scheduleLog);
 
@@ -149,6 +204,144 @@ public class NotificationScheduler {
     }
 
     /**
+     * 从通知队列构建批次报告（支持时间线聚合）
+     *
+     * @param pendingQueues 待发送的队列记录列表
+     * @param groupedByFingerprint 按指纹分组的数据
+     * @param windowStart 时间窗口开始
+     * @param windowEnd 时间窗口结束
+     * @return 批次报告
+     */
+    private NotificationBatchReport buildBatchReportFromQueue(
+            List<NotificationQueue> pendingQueues,
+            Map<String, List<NotificationQueue>> groupedByFingerprint,
+            LocalDateTime windowStart,
+            LocalDateTime windowEnd) {
+
+        // 1. 按严重程度分组（将 severity 为 null 的记录归为中等问题）
+        Map<SeverityLevel, List<NotificationQueue>> groupedBySeverity = pendingQueues.stream()
+            .collect(Collectors.groupingBy(q ->
+                q.getSeverity() != null ? q.getSeverity() : SeverityLevel.WARNING
+            ));
+
+        // 2. 按优先级排序（影响力 = 平均耗时 × 出现次数）
+        Comparator<NotificationQueue> priorityComparator = (a, b) -> {
+            double scoreA = (a.getQueryTime() != null ? a.getQueryTime() : 0.0);
+            double scoreB = (b.getQueryTime() != null ? b.getQueryTime() : 0.0);
+            return Double.compare(scoreB, scoreA); // 降序
+        };
+
+        // 3. 转换为 SlowQueryTemplate 并按严重程度分组
+        List<SlowQueryTemplate> criticalTemplates = groupedBySeverity
+            .getOrDefault(SeverityLevel.CRITICAL, Collections.emptyList())
+            .stream()
+            .sorted(priorityComparator)
+            .map(this::convertQueueToTemplate)
+            .collect(Collectors.toList());
+
+        List<SlowQueryTemplate> mediumTemplates = groupedBySeverity
+            .getOrDefault(SeverityLevel.WARNING, Collections.emptyList())
+            .stream()
+            .sorted(priorityComparator)
+            .map(this::convertQueueToTemplate)
+            .collect(Collectors.toList());
+
+        List<SlowQueryTemplate> lowTemplates = groupedBySeverity
+            .getOrDefault(SeverityLevel.NORMAL, Collections.emptyList())
+            .stream()
+            .sorted(priorityComparator)
+            .map(this::convertQueueToTemplate)
+            .collect(Collectors.toList());
+
+        // 4. 统计各严重程度的数量
+        int criticalCount = criticalTemplates.size();
+        int mediumCount = mediumTemplates.size();
+        int lowCount = lowTemplates.size();
+
+        // 5. 计算总样本数（队列中的记录数）
+        long totalSamples = pendingQueues.size();
+
+        // 6. 提取最需要关注的 Top 3 表
+        List<String> topTables = extractTopProblematicTablesFromQueue(pendingQueues);
+
+        return NotificationBatchReport.builder()
+            .windowStart(windowStart)
+            .windowEnd(windowEnd)
+            .totalCount(groupedByFingerprint.size()) // 去重后的指纹数量
+            .totalSamples(totalSamples)
+            .criticalCount(criticalCount)
+            .mediumCount(mediumCount)
+            .lowCount(lowCount)
+            .criticalIssues(criticalTemplates)
+            .mediumIssues(mediumTemplates)
+            .lowIssues(lowTemplates)
+            .topProblematicTables(topTables)
+            .build();
+    }
+
+    /**
+     * 将 NotificationQueue 转换为 SlowQueryTemplate（临时对象，用于邮件渲染）
+     *
+     * @param queue 通知队列对象
+     * @return SlowQueryTemplate 临时对象
+     */
+    private SlowQueryTemplate convertQueueToTemplate(NotificationQueue queue) {
+        SlowQueryTemplate template = new SlowQueryTemplate();
+        template.setSqlFingerprint(queue.getSqlFingerprint());
+        template.setSqlTemplate(queue.getSqlTemplate());
+        template.setDbName(queue.getDbName());
+        template.setTableName(queue.getTableName());
+        template.setSeverityLevel(queue.getSeverity());
+        template.setAiAnalysisReport(queue.getAiReport());
+        template.setAvgQueryTime(queue.getQueryTime());
+        template.setAvgLockTime(queue.getLockTime());
+        template.setMaxRowsExamined(queue.getRowsExamined());
+        template.setFirstSeenTime(queue.getAnalyzedTime());
+        template.setLastSeenTime(queue.getAnalyzedTime());
+        template.setOccurrenceCount(1L); // 队列中每条记录代表一次分析
+        return template;
+    }
+
+    /**
+     * 从通知队列提取最需要关注的 Top 3 表
+     * 按问题数量排序
+     */
+    private List<String> extractTopProblematicTablesFromQueue(List<NotificationQueue> queues) {
+        return queues.stream()
+            .filter(q -> q.getTableName() != null && !q.getTableName().isEmpty())
+            .collect(Collectors.groupingBy(
+                NotificationQueue::getTableName,
+                Collectors.counting()
+            ))
+            .entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+            .limit(3)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 根据通知队列更新 Template 表的状态（兼容现有逻辑）
+     *
+     * @param pendingQueues 待发送的队列记录列表
+     */
+    private void updateTemplateStatusFromQueue(List<NotificationQueue> pendingQueues) {
+        // 获取所有涉及到的指纹
+        Set<String> fingerprints = pendingQueues.stream()
+            .map(NotificationQueue::getSqlFingerprint)
+            .collect(Collectors.toSet());
+
+        // 更新 Template 表的状态
+        fingerprints.forEach(fingerprint -> {
+            templateRepo.findBySqlFingerprint(fingerprint).ifPresent(template -> {
+                template.setNotificationStatus(NotificationStatus.SENT);
+                template.setLastNotifiedTime(LocalDateTime.now());
+                templateRepo.save(template);
+            });
+        });
+    }
+
+    /**
      * 构建批次报告
      *
      * @param templates 等待通知的指纹列表
@@ -161,10 +354,11 @@ public class NotificationScheduler {
             LocalDateTime windowStart,
             LocalDateTime windowEnd) {
 
-        // 1. 按严重程度分组（过滤掉 severityLevel 为 null 的记录）
+        // 1. 按严重程度分组（将 severityLevel 为 null 的记录归为中等问题）
         Map<SeverityLevel, List<SlowQueryTemplate>> grouped = templates.stream()
-            .filter(t -> t.getSeverityLevel() != null)
-            .collect(Collectors.groupingBy(t -> t.getSeverityLevel()));
+            .collect(Collectors.groupingBy(t ->
+                t.getSeverityLevel() != null ? t.getSeverityLevel() : SeverityLevel.WARNING
+            ));
 
         List<SlowQueryTemplate> critical = new ArrayList<>(grouped.getOrDefault(SeverityLevel.CRITICAL, Collections.emptyList()));
         List<SlowQueryTemplate> medium = new ArrayList<>(grouped.getOrDefault(SeverityLevel.WARNING, Collections.emptyList()));
@@ -268,5 +462,76 @@ public class NotificationScheduler {
                 .avgRowsExamined(template.getAvgRowsExamined())
                 .maxRowsExamined(template.getMaxRowsExamined() != null ? template.getMaxRowsExamined() : 0L)
                 .build();
+    }
+
+    /**
+     * 保存通知历史记录（发送成功）
+     *
+     * @param pendingQueues 待发送的队列记录列表
+     * @param batchId 批次ID
+     * @param sentTime 发送时间
+     */
+    private void saveNotificationHistory(List<NotificationQueue> pendingQueues, String batchId, LocalDateTime sentTime) {
+        try {
+            List<NotificationHistory> historyList = pendingQueues.stream()
+                .map(queue -> NotificationHistory.builder()
+                        .batchId(batchId)
+                        .sqlFingerprint(queue.getSqlFingerprint())
+                        .dbName(queue.getDbName())
+                        .tableName(queue.getTableName())
+                        .analyzedTime(queue.getAnalyzedTime())
+                        .sentTime(sentTime)
+                        .severity(queue.getSeverity())
+                        .occurrenceCount(1L) // 队列中每条记录代表一次分析
+                        .avgQueryTime(queue.getQueryTime())
+                        .maxQueryTime(queue.getQueryTime())
+                        .sqlTemplate(queue.getSqlTemplate())
+                        .aiReport(queue.getAiReport())
+                        .notificationStatus(NotificationHistory.NotificationStatus.SENT)
+                        .errorMessage(null)
+                        .build())
+                .collect(Collectors.toList());
+
+            notificationHistoryRepo.saveAll(historyList);
+            log.debug("📋 已保存 {} 条通知历史记录", historyList.size());
+        } catch (Exception e) {
+            log.error("保存通知历史失败: batchId={}", batchId, e);
+            // 不抛出异常，避免影响主流程
+        }
+    }
+
+    /**
+     * 保存失败的通知历史记录
+     *
+     * @param pendingQueues 待发送的队列记录列表
+     * @param batchId 批次ID
+     */
+    private void saveFailedNotificationHistory(List<NotificationQueue> pendingQueues, String batchId) {
+        try {
+            List<NotificationHistory> historyList = pendingQueues.stream()
+                .map(queue -> NotificationHistory.builder()
+                        .batchId(batchId)
+                        .sqlFingerprint(queue.getSqlFingerprint())
+                        .dbName(queue.getDbName())
+                        .tableName(queue.getTableName())
+                        .analyzedTime(queue.getAnalyzedTime())
+                        .sentTime(null) // 失败时没有发送时间
+                        .severity(queue.getSeverity())
+                        .occurrenceCount(1L)
+                        .avgQueryTime(queue.getQueryTime())
+                        .maxQueryTime(queue.getQueryTime())
+                        .sqlTemplate(queue.getSqlTemplate())
+                        .aiReport(queue.getAiReport())
+                        .notificationStatus(NotificationHistory.NotificationStatus.FAILED)
+                        .errorMessage("已重试3次，仍然发送失败")
+                        .build())
+                .collect(Collectors.toList());
+
+            notificationHistoryRepo.saveAll(historyList);
+            log.debug("📋 已保存 {} 条失败通知历史记录", historyList.size());
+        } catch (Exception e) {
+            log.error("保存失败通知历史失败: batchId={}", batchId, e);
+            // 不抛出异常，避免影响主流程
+        }
     }
 }
