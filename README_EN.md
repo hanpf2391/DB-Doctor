@@ -4,7 +4,7 @@
 
 **English | [简体中文](README.md)**
 
-# 🏥 DB-Doctor
+# DB-Doctor
 
 ### **MySQL Database "Autopilot" Diagnosis Platform Powered by DeepSeek/LLM**
 
@@ -16,8 +16,6 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-brightgreen.svg)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
-
 **[Quick Start](#-quick-start)** •
 **[Features](#-core-features)** •
 **[Architecture](#-system-architecture)** •
@@ -28,149 +26,118 @@
 
 ---
 
-## 📖 Project Overview
+## Project Overview
 
 **DB-Doctor** is a non-intrusive MySQL slow query intelligent diagnosis system based on **multi-AI Agent collaboration**. It monitors MySQL slow query logs in real-time and uses large language models (DeepSeek/Ollama/Qwen/etc.) to analyze root causes and push optimization recommendations.
 
 ---
 
-## 🎬 Feature Demo
+## Feature Demo
 
 <p align="center">
   <img src="demo.gif" width="800" alt="DB-Doctor Feature Demo" />
 </p>
 
 **Demo Content**:
-1. 📊 Automatic detection and capture of slow queries
-2. 🤖 AI Agent intelligent root cause analysis
-3. 💡 Generate optimization recommendations and execution plans
-4. 📈 AI Token cost monitoring
+1. Automatic detection and capture of slow queries
+2. AI Agent intelligent root cause analysis
+3. Generate optimization recommendations and execution plans
+4. AI Token cost monitoring
 
 ---
 
-### 🎯 Why Choose DB-Doctor?
+### Why Choose DB-Doctor?
 
 | Feature | DB-Doctor | Traditional Solutions |
 |---------|-----------|----------------------|
-| **Data Security** | ✅ Supports Ollama local deployment, data never leaves your domain | ❌ Requires uploading to cloud |
-| **Business Intrusion** | ✅ Read-only access, zero business intrusion | ⚠️ Requires modifying business code or importing SDK |
-| **Diagnosis Efficiency** | ✅ AI automatic analysis, second-level response | ❌ Manual troubleshooting, time-consuming |
-| **Accuracy** | ✅ Multi-Agent collaboration, deep reasoning | ⚠️ Experience-based rules, high false positive rate |
-| **Deployment Cost** | ✅ Docker one-click deployment, 5 minutes to get started | ❌ Complex configuration, high learning curve |
+| **Data Security** | Supports Ollama local deployment, data never leaves your domain | Requires uploading to cloud |
+| **Business Intrusion** | Read-only access, zero business intrusion | Requires modifying business code or importing SDK |
+| **Diagnosis Efficiency** | AI automatic analysis, second-level response | Manual troubleshooting, time-consuming |
+| **Accuracy** | Multi-Agent collaboration, deep reasoning | Experience-based rules, high false positive rate |
+| **Deployment Cost** | Docker one-click deployment, 5 minutes to get started | Complex configuration, high learning curve |
 
 ---
 
-## ✨ Core Features
+## Core Features
 
-### 🤖 **Multi-AI Agent Collaboration Mechanism**
+### **Multi-AI Agent Collaboration Mechanism**
 - **Attending Physician Agent**: Preliminary diagnosis, collect evidence (table structure, execution plan, index information)
 - **Reasoning Expert Agent**: Deep reasoning, find root causes (escalate analysis for complex issues)
 - **Coding Expert Agent**: Generate optimization code (index creation, SQL rewriting)
 
-### 🔒 **Data Never Leaves Your Domain**
-- ✅ Supports **Ollama + DeepSeek R1** local deployment
-- ✅ Supports Qwen, OpenAI, and other cloud models
-- ✅ Automatic sensitive data masking (SQL parameters, passwords, etc.)
+### **Data Never Leaves Your Domain**
+- Supports **Ollama + DeepSeek R1** local deployment
+- Supports Qwen, OpenAI, and other cloud models
+- Automatic sensitive data masking (SQL parameters, passwords, etc.)
 
-### 🚀 **Non-Intrusive Design**
-- ✅ Read-only access to MySQL, zero business intrusion
-- ✅ No need to modify business code or import JAR packages
-- ✅ Standalone deployment, zero impact on existing systems
+### **Non-Intrusive Design**
+- Read-only access to MySQL, zero business intrusion
+- No need to modify business code or import JAR packages
+- Standalone deployment, zero impact on existing systems
 
-### 🧠 **Intelligent Deduplication & Aggregation**
-- ✅ Uses Druid SQL fingerprint calculation to automatically identify duplicate SQL
-- ✅ Template + Sample dual-table architecture to avoid notification spam
-- ✅ Incremental statistics to track performance trends
+### **Intelligent Deduplication & Aggregation**
+- Uses Druid SQL fingerprint calculation to automatically identify duplicate SQL
+- Template + Sample dual-table architecture to avoid notification spam
+- Incremental statistics to track performance trends
 
-### 📊 **AI Monitoring & Cost Analysis**
-- ✅ Complete Token statistics (input/output/total cost)
-- ✅ Multi-model cost analysis (DeepSeek, GPT-4, Qwen, etc.)
-- ✅ Single analysis tracking (traceId correlates complete analysis chain)
-- ✅ Error classification and circuit breaker protection
+### **AI Monitoring & Cost Analysis**
+- Complete Token statistics (input/output/total cost)
+- Multi-model cost analysis (DeepSeek, GPT-4, Qwen, etc.)
+- Single analysis tracking (traceId correlates complete analysis chain)
+- Error classification and circuit breaker protection
 
-### 📢 **Multi-Channel Notifications**
-- ✅ Email notifications (SMTP)
-- ✅ DingTalk bot (Webhook + signature verification)
-- ✅ Feishu bot (Webhook)
-- ✅ Enterprise WeChat (Webhook)
-
----
-
-## 🎬 Demo Video
-
-<!-- GIF demo placeholder -->
-<!--
-<p align="center">
-  <img src="docs/demo.gif" width="800" alt="DB-Doctor Demo" />
-</p>
-
-**Demo Content**:
-1. Discover slow query (or simulate one)
-2. DB-Doctor AI Agent thinking and analysis process
-3. Provide index suggestions/optimization solutions
-4. (Optional) Performance comparison
--->
-
-<!-- Bilibili video placeholder -->
-### 📺 Complete Demo Video
-[![Bilibili Video Cover](docs/video-cover.png)](https://www.bilibili.com/video/XXXXX)
-
-**Click to Watch**: [DB-Doctor Complete Demo](https://www.bilibili.com/video/XXXXX) (Coming soon...)
+### **Multi-Channel Notifications**
+- Email notifications (SMTP)
+- DingTalk bot (Webhook + signature verification)
+- Feishu bot (Webhook)
+- Enterprise WeChat (Webhook)
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         DB-Doctor System Architecture                 │
-├─────────────────────────────────────────────────────────────────────┤
-│  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐   │
-│  │   Vue 3 UI     │    │  Spring Boot   │    │   AI Agents    │   │
-│  │                │◄──►│     Backend     │◄──►│  (LangChain4j) │   │
-│  │  - Dashboard   │    │                │    │                │   │
-│  │  - Report List │    │  - REST API    │    │  - Attending   │   │
-│  │  - AI Monitor  │    │  - Scheduled    │    │    Physician   │   │
-│  │  - Config Ctr  │    │  - Async Proc   │    │  - Reasoning   │   │
-│  └────────────────┘    └────────────────┘    │  - Coding       │   │
-│                                │             └────────────────┘   │
-└────────────────────────────────┼───────────────────────────────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-            ┌───────▼────────┐       ┌────────▼────────┐
-            │  H2 Database   │       │  MySQL Target   │
-            │  (Internal)     │       │  (Read-Only)    │
-            │                │       │                │
-            │  - Template    │       │  - slow_log    │
-            │  - Sample      │       │  - information │
-            │  - AI Logs     │       │    _schema     │
-            │  - System Cfg  │       │                │
-            └────────────────┘       └────────────────┘
+DB-Doctor System Architecture
+├────────────────┐    ┌────────────────┐    ┌────────────────┐
+│   Vue 3 UI     │    │  Spring Boot   │    │   AI Agents    │
+│                │◄──►│     Backend     │◄──►│  (LangChain4j) │
+│  - Dashboard   │    │                │    │                │
+│  - Report List │    │  - REST API    │    │  - Attending   │
+│  - AI Monitor  │    │  - Scheduled    │    │    Physician   │
+│  - Config Ctr  │    │  - Async Proc   │    │  - Reasoning   │
+└────────────────┘    └────────────────┘    │  - Coding       │
+                                │             └────────────────┘
+                    ┌───────────┴───────────┐
+                    │                       │
+            ┌───────▼────────┐      ┌───────▼────────┐
+            │  H2 Database   │      │  MySQL Target   │
+            │  (Internal)     │      │  (Read-Only)    │
+            │                │      │                │
+            │  - Template    │      │  - slow_log    │
+            │  - Sample      │      │  - information │
+            │  - AI Logs     │      │    _schema     │
+            │  - System Cfg  │      │                │
+            └────────────────┘      └────────────────┘
 ```
 
 ### Core Business Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Slow Query Processing Complete Flow                   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  1. Data Collection → 2. Processing → 3. AI Analysis → 4. Notify → 5.  │
-│                                                                         │
-│  Poll mysql.slow_log → SQL Fingerprint → Multi-Agent → Smart Strategy  │
-│  (Every 5 sec)      → Deduplication → Collaboration → Batch Send       │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+Slow Query Processing Complete Flow
+1. Data Collection → 2. Processing → 3. AI Analysis → 4. Notify → 5. Batch Send
+
+Poll mysql.slow_log → SQL Fingerprint → Multi-Agent → Smart Strategy → Batch Send
+(Every 5 sec)      → Deduplication → Collaboration → Scheduled Delivery
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Method 1: Docker Deployment (Recommended)
 
-<!-- Docker image placeholder -->
+**Ready to use, 5 minutes to get started!**
+
 ```bash
 # 1. Pull image (image building in progress...)
 docker pull ghcr.io/hanpf2391/db-doctor:latest
@@ -179,13 +146,18 @@ docker pull ghcr.io/hanpf2391/db-doctor:latest
 docker run -d \
   --name db-doctor \
   -p 8080:8080 \
-  -e LANGCHAIN4J_OPEN_AI_API_KEY=your-api-key \
-  -e SPRING_DATASOURCE_PASSWORD=your-mysql-password \
   ghcr.io/hanpf2391/db-doctor:latest
 
 # 3. Access Web UI
 open http://localhost:8080
 ```
+
+**Advantages**:
+- No need to install Java, Maven, or other environments
+- One-click startup, automatic configuration
+- Isolated operation, no impact on existing systems
+
+---
 
 ### Method 2: Local Development
 
@@ -195,7 +167,6 @@ open http://localhost:8080
 - **Maven 3.6+**
 - **MySQL 5.7+ / 8.0+**
 - **Node.js 16+** (for frontend development)
-- **LLM API Key** (DeepSeek/Ollama/Qwen/OpenAI)
 
 #### 1. Clone the Project
 
@@ -204,79 +175,7 @@ git clone https://github.com/hanpf2391/DB-Doctor.git
 cd DB-Doctor
 ```
 
-#### 2. Configure Database
-
-Edit `src/main/resources/application-local.yml`:
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://localhost:3306/information_schema
-    username: root
-    password: your_password
-    driver-class-name: com.mysql.cj.jdbc.Driver
-
-db-doctor:
-  target-db:
-    host: localhost
-    port: 3306
-    username: root
-    password: your_password
-```
-
-#### 3. Configure AI Model
-
-**Option A: Use DeepSeek (Recommended, Cost-Effective)**
-
-```yaml
-langchain4j:
-  open-ai:
-    chat-model:
-      api-key: sk-your-deepseek-api-key
-      base-url: https://api.deepseek.com/v1
-      model-name: deepseek-chat
-      temperature: 0.0
-```
-
-**Option B: Use Ollama Local Model (Data Never Leaves Domain)**
-
-```yaml
-langchain4j:
-  open-ai:
-    chat-model:
-      base-url: http://localhost:11434/v1
-      model-name: deepseek-r1:7b
-      temperature: 0.0
-```
-
-First install Ollama and download DeepSeek R1 model:
-
-```bash
-# Install Ollama (Mac/Linux)
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Windows - Download installer
-# https://ollama.com/download
-
-# Download DeepSeek R1 model (7B version ~4GB)
-ollama pull deepseek-r1:7b
-
-# Verify installation
-ollama run deepseek-r1:7b
-```
-
-**Option C: Use Alibaba Cloud Qwen**
-
-```yaml
-langchain4j:
-  open-ai:
-    chat-model:
-      api-key: sk-your-qwen-api-key
-      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-      model-name: qwen-plus
-```
-
-#### 4. Configure Slow Query Log
+#### 2. Configure MySQL Slow Query Log
 
 **Method 1: Automatic Check (Recommended)**
 
@@ -295,7 +194,7 @@ SHOW VARIABLES LIKE 'slow_query%';
 SHOW VARIABLES LIKE 'long_query_time';
 ```
 
-#### 5. Start Backend
+#### 3. Start Backend
 
 ```bash
 # Method 1: Maven run
@@ -306,7 +205,7 @@ mvn clean package -DskipTests
 java -jar target/db-doctor-3.0.0.jar
 ```
 
-#### 6. Start Frontend (Development Mode)
+#### 4. Start Frontend (Development Mode)
 
 ```bash
 cd frontend
@@ -322,22 +221,26 @@ npm run dev
 
 Access: http://localhost:5173
 
-#### 7. Access Web UI
+#### 5. Access Web UI for Configuration
 
 After successful startup, visit: http://localhost:8080
 
-<!-- Screenshot placeholder -->
-<!--
-<p align="center">
-  <img src="docs/screenshots/dashboard.png" width="800" alt="Dashboard" />
-  <img src="docs/screenshots/report-list.png" width="800" alt="Report List" />
-  <img src="docs/screenshots/ai-monitor.png" width="800" alt="AI Monitor" />
-</p>
--->
+**First-time setup requires Web UI configuration**:
+1. Click "Configuration Center" → "Data Source Configuration"
+2. Fill in MySQL database connection information (host, port, username, password)
+3. Click "Configure AI" → Select AI model (DeepSeek/Ollama/Qwen/etc.)
+4. Fill in API Key or local model address
+5. Click "Test Connection" to verify configuration
+6. Click "Reload Configuration" to apply
+
+**Supported hot-reload configurations**:
+- Database connection information (supports dynamic switching without restart)
+- AI model configuration (supports DeepSeek, Ollama, Qwen, OpenAI, etc.)
+- Notification channel configuration (Email, DingTalk, Feishu, Enterprise WeChat)
 
 ---
 
-## 📚 Feature Details
+## Feature Details
 
 ### 1. Multi-AI Agent Collaboration Mechanism
 
@@ -375,9 +278,9 @@ SELECT * FROM users WHERE id = 100;
 - **Sample Table**: Stores specific SQL for each capture (preserves complete history)
 
 **Advantages**:
-- ✅ Avoid duplicate analysis
-- ✅ Reduce storage space
-- ✅ Track performance trends
+- Avoid duplicate analysis
+- Reduce storage space
+- Track performance trends
 
 ### 4. Dynamic Data Source Hot Reload
 
@@ -401,30 +304,30 @@ After modifying database configuration, no need to restart the application. Clic
 
 ---
 
-## 📊 Usage Example
+## Usage Example
 
 ### Slow Query Notification Example
 
 ```
-🔴 [Slow Query Alert] Database Performance Anomaly
+[Slow Query Alert] Database Performance Anomaly
 
 SQL Statement:
 SELECT * FROM users WHERE username LIKE '%1234%'
 
-📊 Performance Metrics:
+Performance Metrics:
   - Query Time: 3.5 seconds
   - Lock Wait Time: 0.01 seconds
   - Rows Examined: 10,000
   - Rows Sent: 5
 
-🤖 AI Analysis:
+AI Analysis:
   1. Root Cause: Leading wildcard query (LIKE '%...%') causes full table scan
   2. Optimization Suggestions:
      - Avoid leading wildcards, use LIKE '1234%' instead
      - Consider adding full-text index
      - Use Elasticsearch or other search engines
 
-📈 Statistics:
+Statistics:
   - Occurrences: 1st time
   - Avg Query Time: 3.5 seconds
   - Max Query Time: 3.5 seconds
@@ -432,7 +335,7 @@ SELECT * FROM users WHERE username LIKE '%1234%'
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
@@ -446,49 +349,7 @@ SELECT * FROM users WHERE username LIKE '%1234%'
 
 ---
 
-## 📄 Configuration
-
-### Environment Check Configuration
-
-```yaml
-db-doctor:
-  env-check:
-    enabled: true            # Enable environment check
-    fail-on-error: false     # Block startup on check failure
-    auto-fix: false          # Attempt auto-fix (requires SUPER privilege)
-```
-
-### Slow Query Monitor Configuration
-
-```yaml
-db-doctor:
-  slow-log-monitor:
-    poll-interval-ms: 5000           # Poll interval (milliseconds)
-    max-records-per-poll: 100        # Max records per poll
-    auto-cleanup:
-      enabled: true                  # Enable auto cleanup
-      cron-expression: "0 0 3 * * ?" # Cleanup task cron expression
-```
-
-### Notification Configuration
-
-```yaml
-db-doctor:
-  notify:
-    enabled-notifiers: email,webhook
-    notify-interval: 3600            # Notification interval (seconds)
-    severity-threshold: 3.0          # Severity threshold
-
-    email:
-      enabled: true
-      from: DB-Doctor <noreply@example.com>
-      to:
-        - dba@example.com
-```
-
----
-
-## 🧪 Test Database
+## Test Database
 
 The project provides complete performance test database scripts:
 
@@ -499,10 +360,10 @@ mysql -u root -p < src/main/resources/test-db-setup.sql
 ```
 
 **Includes**:
-- ✅ 7 tables (users, products, orders, order_items, categories, user_behavior_logs, payments)
-- ✅ 370,000+ test records
-- ✅ Covers various field types
-- ✅ Auto-configures slow query threshold (0.5 seconds)
+- 7 tables (users, products, orders, order_items, categories, user_behavior_logs, payments)
+- 370,000+ test records
+- Covers various field types
+- Auto-configures slow query threshold (0.5 seconds)
 
 ### 2. Execute Slow Query Tests
 
@@ -523,21 +384,40 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 
-- [x] v1.0.0 - Basic slow query monitoring
-- [x] v2.0.0 - Dynamic environment awareness + SQL fingerprint deduplication
-- [x] v3.0.0 - Dynamic data source + config hot reload
-- [ ] v3.1.0 - Notification enhancement (email/Webhook delivery)
-- [ ] v3.2.0 - Report export (PDF/Word)
-- [ ] v3.3.0 - Custom notification rules
-- [ ] v4.0.0 - Multi-tenant support (monitor multiple MySQL instances)
-- [ ] v4.1.0 - PostgreSQL support
-- [ ] v4.2.0 - Distributed deployment (message queue decoupling)
+### Completed
+
+- **v1.0.0** - Basic slow query monitoring + AI analysis
+- **v2.0.0** - Dynamic environment awareness + SQL fingerprint deduplication
+- **v3.0.0** - Dynamic data source + config hot reload
+- **v3.1.0** - Notification enhancement (email, DingTalk, Feishu, Enterprise WeChat)
+
+### In Development
+
+- **v3.2.0** - Report export (PDF/Word)
+  - [ ] Generate PDF format diagnosis report
+  - [ ] Generate Word format optimization plan
+  - [ ] Support batch export
+
+### Planned
+
+- **v3.3.0** - Custom notification rules
+  - [ ] Intelligent notification based on severity
+  - [ ] Time-based notification strategy
+  - [ ] Multi-channel notification orchestration
+
+- **v4.0.0** - Multi-tenant support
+  - [ ] Monitor multiple MySQL instances
+  - [ ] Tenant isolation and permission management
+  - [ ] Cross-instance performance analysis
+
+- **v4.1.0** - PostgreSQL support
+- **v4.2.0** - Distributed deployment (message queue decoupling)
 
 ---
 
-## 🤝 Contributing Guide
+## Contributing Guide
 
 Issues and Pull Requests are welcome!
 
@@ -551,15 +431,15 @@ Issues and Pull Requests are welcome!
 
 ### Code Standards
 
-- ✅ Follow Alibaba Java Coding Guidelines
-- ✅ No hardcoding, all parameters from config files
-- ✅ Use Slf4j logging framework, no System.out.println
-- ✅ Exceptions must be logged and re-thrown
-- ✅ All public classes and methods must have JavaDoc
+- Follow Alibaba Java Coding Guidelines
+- No hardcoding, all parameters from config files
+- Use Slf4j logging framework, no System.out.println
+- Exceptions must be logged and re-thrown
+- All public classes and methods must have JavaDoc
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Thanks to the following open source projects and tech communities:
 
@@ -573,15 +453,7 @@ Thanks to the following open source projects and tech communities:
 
 ---
 
-## 📮 Contact
-
-<!-- WeChat QR code placeholder -->
-<!--
-<div align="center">
-  <img src="docs/wechat-qr-code.png" width="200" alt="WeChat Group" />
-  <p>Scan to join DB-Doctor Technical Discussion Group</p>
-</div>
--->
+## Contact
 
 - **Author**: hanpf
 - **Email**: 2391303768@qq.com
@@ -590,31 +462,31 @@ Thanks to the following open source projects and tech communities:
 
 ---
 
-## 📄 License
+## License
 
 This project is open sourced under [MIT License](LICENSE).
 
 ---
 
-## ⭐ Star History
+## Internationalization
 
-[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
-
-If this project helps you, please give us a Star ⭐
-
----
-
-## 🌍 Internationalization
-
-- 🇨🇳 [中文文档](README.md)
-- 🇺🇸 [English Documentation](README_EN.md)
+- [中文文档](README.md)
+- [English Documentation](README_EN.md)
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by hanpf**
+**Made with love by hanpf**
 
 **Give every database an intelligent doctor**
+
+---
+
+## Star History
+
+If this project helps you, please give us a Star
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hanpf2391/DB-Doctor&type=Date)](https://star-history.com/#hanpf2391/DB-Doctor&Date)
 
 </div>
