@@ -139,27 +139,82 @@ Poll mysql.slow_log → SQL Fingerprint → Multi-Agent → Smart Strategy → B
 **Ready to use, 5 minutes to get started!**
 
 ```bash
-# 1. Pull image (image building in progress...)
-docker pull ghcr.io/hanpf2391/db-doctor:latest
+# 1. Pull image
+docker pull hanpf23/db-doctor:0.1.0
 
 # 2. Run container
 docker run -d \
   --name db-doctor \
   -p 8080:8080 \
-  ghcr.io/hanpf2391/db-doctor:latest
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  hanpf23/db-doctor:0.1.0
 
 # 3. Access Web UI
 open http://localhost:8080
+```
+
+**Or use docker-compose:**
+
+```bash
+# 1. Download docker-compose.yml
+wget https://raw.githubusercontent.com/hanpf2391/DB-Doctor/main/docker-compose.yml
+
+# 2. Start
+docker-compose up -d
+
+# 3. View logs
+docker-compose logs -f
 ```
 
 **Advantages**:
 - No need to install Java, Maven, or other environments
 - One-click startup, automatic configuration
 - Isolated operation, no impact on existing systems
+- Data persistence, no data loss on restart
 
 ---
 
-### Method 2: Local Development
+### Method 2: Download Release Package
+
+**Suitable for production deployment, no compilation required!**
+
+#### For Windows Users
+
+```cmd
+# 1. Download release package
+Visit: https://github.com/hanpf2391/DB-Doctor/releases
+
+# 2. Extract and enter directory
+cd DB-Doctor-v0.1.0
+
+# 3. Double-click to run startup script
+scripts\start.bat
+```
+
+#### For Linux/Mac Users
+
+```bash
+# 1. Download release package
+wget https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar
+
+# 2. Run
+java -jar db-doctor.jar
+
+# Or use startup script
+chmod +x scripts/start.sh
+./scripts/start.sh
+```
+
+**Advantages**:
+- No need to install Maven, Node.js
+- Ready to use, includes frontend and backend
+- Single JAR file, simple deployment
+- Suitable for production environments
+
+---
+
+### Method 3: Local Development
 
 #### Prerequisites
 
@@ -386,28 +441,31 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 
 ## Roadmap
 
-### Completed
+### Current Release
 
-- **v1.0.0** - Basic slow query monitoring + AI analysis
-- **v2.0.0** - Dynamic environment awareness + SQL fingerprint deduplication
-- **v3.0.0** - Dynamic data source + config hot reload
-- **v3.1.0** - Notification enhancement (email, DingTalk, Feishu, Enterprise WeChat)
+- **v0.1.0** - First official release (February 2026)
+  - Docker deployment support
+  - Release package download
+  - Multi-AI Agent collaboration
+  - SQL fingerprint deduplication
+  - Multi-channel notifications (Email, DingTalk, Feishu, Enterprise WeChat)
+  - Config hot reload (Dynamic data source + AI model switching)
 
 ### In Development
 
-- **v3.2.0** - Report export (PDF/Word)
+- **v0.2.0** - Report export (PDF/Word)
   - [ ] Generate PDF format diagnosis report
   - [ ] Generate Word format optimization plan
   - [ ] Support batch export
 
 ### Planned
 
-- **v3.3.0** - Custom notification rules
+- **v0.3.0** - Custom notification rules
   - [ ] Intelligent notification based on severity
   - [ ] Time-based notification strategy
   - [ ] Multi-channel notification orchestration
 
-- **v4.0.0** - Multi-tenant support
+- **v1.0.0** - Multi-tenant support
   - [ ] Monitor multiple MySQL instances
   - [ ] Tenant isolation and permission management
   - [ ] Cross-instance performance analysis
@@ -476,6 +534,24 @@ This project is open sourced under [MIT License](LICENSE).
 ---
 
 <div align="center">
+
+## Downloads & Deployment
+
+### Docker Hub
+
+- **Image URL**: [hanpf23/db-doctor](https://hub.docker.com/r/hanpf23/db-doctor)
+- **Quick Start**:
+  ```bash
+  docker pull hanpf23/db-doctor:0.1.0
+  docker run -d -p 8080:8080 hanpf23/db-doctor:0.1.0
+  ```
+
+### GitHub Release
+
+- **Release Page**: [DB-Doctor Releases](https://github.com/hanpf2391/DB-Doctor/releases)
+- **Downloads**:
+  - [db-doctor.jar](https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar) (Recommended for production)
+  - [db-doctor.jar.sha256](https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar.sha256) (Checksum file)
 
 **Made with love by hanpf**
 

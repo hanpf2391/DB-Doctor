@@ -1,0 +1,29 @@
+# ============================================
+# DB-Doctor Dockerfile (使用预构建的 JAR)
+# ============================================
+
+# 使用更小的基础镜像
+FROM eclipse-temurin:17-jre-alpine
+
+# 安装必要的工具
+RUN apk add --no-cache tzdata
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+
+WORKDIR /app
+
+# 复制预构建的 JAR 文件
+COPY target/db-doctor-*.jar app.jar
+
+# 创建数据目录
+RUN mkdir -p /app/data /app/logs
+
+# 暴露端口
+EXPOSE 8080
+
+# 设置 JVM 参数
+ENV JAVA_OPTS="-Xms512m -Xmx1024m"
+
+# 启动应用
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/./urandom -jar app.jar"]

@@ -116,20 +116,21 @@
 
 ## 项目状态
 
-**当前版本**：**v3.1.0**（2025 年 2 月更新）
+**当前版本**：**v0.1.0**（2026 年 2 月发布）
 
 **最新动态**：
 
-- [x] **v3.1.0** - 通知功能完善（邮件、钉钉、飞书、企业微信）
-- [x] **v3.0.0** - 动态数据源 + 配置热加载功能
-- [x] **v2.0.0** - SQL 指纹去重 + Template/Sample 双表架构
-- [x] **v1.0.0** - 基础慢查询监控 + AI 分析功能
+- [x] **v0.1.0** - 首次正式发布，支持 Docker 部署和发布包下载
+- [x] **多 AI Agent 协作** - 主治医生、推理专家、编码专家
+- [x] **SQL 指纹去重** - Template + Sample 双表架构
+- [x] **多渠道通知** - 邮件、钉钉、飞书、企业微信
+- [x] **配置热加载** - 动态数据源 + AI 模型切换
 
 **即将发布**：
 
-- [ ] **v3.2.0** - 报告导出（PDF/Word）- 开发中
-- [ ] **v3.3.0** - 自定义通知规则 - 计划中
-- [ ] **v4.0.0** - 多租户支持（监控多个 MySQL 实例）- 规划中
+- [ ] **v0.2.0** - 报告导出（PDF/Word）- 开发中
+- [ ] **v0.3.0** - 自定义通知规则 - 计划中
+- [ ] **v1.0.0** - 多租户支持（监控多个 MySQL 实例）- 规划中
 
 项目处于**活跃开发**阶段，代码持续更新中。更多迭代进度请阅读 [CHANGELOG.md](frontend/CHANGELOG.md)
 
@@ -180,27 +181,82 @@ DB-Doctor 系统架构
 **开箱即用，5 分钟上手！**
 
 ```bash
-# 1. 拉取镜像（镜像构建中...）
-docker pull ghcr.io/hanpf2391/db-doctor:latest
+# 1. 拉取镜像
+docker pull hanpf23/db-doctor:0.1.0
 
 # 2. 运行容器
 docker run -d \
   --name db-doctor \
   -p 8080:8080 \
-  ghcr.io/hanpf2391/db-doctor:latest
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  hanpf23/db-doctor:0.1.0
 
 # 3. 访问 Web 界面
 open http://localhost:8080
+```
+
+**或使用 docker-compose：**
+
+```bash
+# 1. 下载 docker-compose.yml
+wget https://raw.githubusercontent.com/hanpf2391/DB-Head/main/docker-compose.yml
+
+# 2. 启动
+docker-compose up -d
+
+# 3. 查看日志
+docker-compose logs -f
 ```
 
 **优势**：
 - 无需安装 Java、Maven 等环境
 - 一键启动，自动配置
 - 隔离运行，不影响现有系统
+- 数据持久化，重启不丢失
 
 ---
 
-### 方式 2：本地开发运行
+### 方式 2：下载发布包运行
+
+**适合生产环境部署，无需编译！**
+
+#### Windows 用户
+
+```cmd
+# 1. 下载发布包
+访问：https://github.com/hanpf2391/DB-Doctor/releases
+
+# 2. 解压并进入目录
+cd DB-Doctor-v0.1.0
+
+# 3. 双击运行启动脚本
+scripts\start.bat
+```
+
+#### Linux/Mac 用户
+
+```bash
+# 1. 下载发布包
+wget https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar
+
+# 2. 运行
+java -jar db-doctor.jar
+
+# 或使用启动脚本
+chmod +x scripts/start.sh
+./scripts/start.sh
+```
+
+**优势**：
+- 无需安装 Maven、Node.js
+- 开箱即用，包含前后端
+- 单个 JAR 文件，部署简单
+- 适合生产环境
+
+---
+
+### 方式 3：本地开发运行
 
 #### 环境要求
 
@@ -517,6 +573,24 @@ mysql -u root -p test_db < src/main/resources/靶数据库.sql
 ---
 
 <div align="center">
+
+## 下载与部署
+
+### Docker Hub
+
+- **镜像地址**：[hanpf23/db-doctor](https://hub.docker.com/r/hanpf23/db-doctor)
+- **快速启动**：
+  ```bash
+  docker pull hanpf23/db-doctor:0.1.0
+  docker run -d -p 8080:8080 hanpf23/db-doctor:0.1.0
+  ```
+
+### GitHub Release
+
+- **发布地址**：[DB-Doctor Releases](https://github.com/hanpf2391/DB-Doctor/releases)
+- **文件下载**：
+  - [db-doctor.jar](https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar) (推荐生产环境)
+  - [db-doctor.jar.sha256](https://github.com/hanpf2391/DB-Doctor/releases/download/v0.1.0/db-doctor.jar.sha256) (校验文件)
 
 **Made with ❤️ by hanpf**
 
